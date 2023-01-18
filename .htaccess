@@ -1,0 +1,23 @@
+# Démarrer le moteur de ré-écriture d'URL.
+RewriteEngine on
+# Ne pas rediriger les requêtes vers /assets.
+RewriteRule ^assets/(.*)$ assets/$1 [L]
+# Rediriger toutes les requêtes vers le contrôleur frontal.
+RewriteRule ^.*$ index.php
+
+############################
+# Mémo expression régulières 
+############################
+# ^ Début d'expression
+# $ Fin d'expression
+# () Capture d'expression
+# . N'importe quel caractère
+# * Zéro, une ou plusieur répétitions
+# + Une ou plusieurs répétitions
+# ? Zéro ou une répétition
+# [a-z] Définit une plage entre 2 caractères minuscules
+# [a-z]\i Définit une plage entre 2 caractères quelle que soit la casse
+# [0-9] Définit une plage entre 2 nombres
+# \ Echappe un caractère
+# $n Valeur capturée par la n-ième capture d'expression
+# [L] Drapeau Last : arrêt d'exécution (si directive prise en compte)

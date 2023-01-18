@@ -1,0 +1,214 @@
+[
+    {
+        "verb" : "GET",
+        "uri" : "/test/([1-9][0-9]*)",
+        "method" : "TestController.test",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/products",
+        "method" : "ProductController.list"
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/products/([1-9]-[0-9]*)",
+        "method" : "ProductController.show",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "POST",
+        "uri" : "/api/products",
+        "method" : "ProductController.create"
+    },
+    {
+        "verb" : "PUT",
+        "uri" : "/api/products/([1-9]-[0-9]*)",
+        "method" : "ProductController.update",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "DELETE",
+        "uri" : "/api/products/([1-9]-[0-9]*)",
+        "method" : "ProductController.delete",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/orders",
+        "method" : "OrderController.list"
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/orders/([1-9]-[0-9]*)",
+        "method" : "OrderController.show",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "POST",
+        "uri" : "/api/orders",
+        "method" : "OrderController.create"
+    },
+    {
+        "verb" : "PUT",
+        "uri" : "/api/orders/([1-9]-[0-9]*)",
+        "method" : "OrderController.update",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "DELETE",
+        "uri" : "/api/orders/([1-9]-[0-9]*)",
+        "method" : "OrderController.delete",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/users",
+        "method" : "UserController.list"
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/users/([1-9]-[0-9]*)",
+        "method" : "UserController.show",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "POST",
+        "uri" : "/api/users",
+        "method" : "UserController.create"
+    },
+    {
+        "verb" : "PUT",
+        "uri" : "/api/users/([1-9]-[0-9]*)",
+        "method" : "UserController.update",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "DELETE",
+        "uri" : "/api/users/([1-9]-[0-9]*)",
+        "method" : "UserController.delete",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/favorites",
+        "method" : "FavoriteController.list"
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/favorites/([1-9]-[0-9]*)",
+        "method" : "FavoriteController.show",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "POST",
+        "uri" : "/api/favorites",
+        "method" : "FavoriteController.create"
+    },
+    {
+        "verb" : "PUT",
+        "uri" : "/api/favorites/([1-9]-[0-9]*)",
+        "method" : "FavoriteController.update",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "DELETE",
+        "uri" : "/api/favorites/([1-9]-[0-9]*)",
+        "method" : "FavoriteController.delete",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/recommendations",
+        "method" : "RecommendationController.list"
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/recommendations/([1-9]-[0-9]*)",
+        "method" : "RecommendationController.show",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "POST",
+        "uri" : "/api/recommendations",
+        "method" : "RecommendationController.create"
+    },
+    {
+        "verb" : "PUT",
+        "uri" : "/api/recommendations/([1-9]-[0-9]*)",
+        "method" : "RecommendationController.update",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "DELETE",
+        "uri" : "/api/recommendations/([1-9]-[0-9]*)",
+        "method" : "RecommendationController.delete",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/orders/([1-9]-[0-9]*)/lines",
+        "method" : "LineController.list"
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/orders/([1-9]-[0-9]*)/lines/([1-9]-[0-9]*)",
+        "method" : "LineController.show",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "POST",
+        "uri" : "/api/orders/([1-9]-[0-9]*)/lines",
+        "method" : "LineController.create"
+    },
+    {
+        "verb" : "PUT",
+        "uri" : "/api/orders/([1-9]-[0-9]*)/lines/([1-9]-[0-9]*)",
+        "method" : "LineController.update",
+        "params" : [
+            "id"
+        ]
+    },
+    {
+        "verb" : "DELETE",
+        "uri" : "/api/orders/([1-9]-[0-9]*)/lines/([1-9]-[0-9]*)",
+        "method" : "LineController.delete",
+        "params" : [
+            "id"
+        ]
+    }
+]
