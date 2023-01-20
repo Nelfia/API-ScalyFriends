@@ -126,12 +126,6 @@ class User extends Entity {
      * @var array|null
      */
     protected ?array $cart = [];
-    /**
-     * Token du user.
-     *
-     * @var JWT|null
-     */
-    protected ?JWT $jwt = null;
 
     // /**
     //  * Instance du User logué.

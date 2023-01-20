@@ -42,7 +42,7 @@ final class CfgLocal extends CfgApp {
         self::register('dbPort', 3306);
 
         // Nom de la DB.
-        self::register('dbName', 'api-scalyFriends');
+        self::register('dbName', 'api-scalyfriends');
 
         // Identifiant de l'utilisateur de la DB.
         self::register('dbLog', 'root');

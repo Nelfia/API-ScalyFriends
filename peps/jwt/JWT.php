@@ -2,12 +2,16 @@
 
 declare(strict_types=1);
 
-namespace classes;
+namespace peps\jwt;
 
 use DateTime;
 
 /**
- * Classe 100% statique de génération de Token.
+ * Classe 100% statique de gestion des Token.
+ * NECESSITE une constante secrète dans un fichier NON PARTAGÉ (par défaut: nommée 'SECRET' dans le fichier .env.local) et ignoré par git lors des commits.
+ * Pour des raisons de sécurité, cette constante DOIT rester totalement SECRETE.
+ * Elle ne sera JAMAIS transmise au client.
+ * (Idéalement, SECRET est une phrase codée).
  */
 final class JWT {
 
@@ -128,10 +132,40 @@ final class JWT {
      * @param string $token Token à vérifier.
      * @return boolean TRUE si le contenu du token est valide, sinon FALSE.
      */
-    public static function isValid(string $token) : bool {
+    public static function isClean(string $token) : bool {
         return preg_match(
             '/^[a-zA-Z0-9\-\_\=]+\.[a-zA-Z0-9\-\_\=]+\.[a-zA-Z0-9\-\_\=]+$/',
             $token
         ) === 1;
     }
+
+    /**
+     * Vérifie la présence du token et sa validité.
+     *
+     * @return string $token Si Token reçu et valide.
+     * @return bool false Si token non trouvé ou invalide.
+     */
+    public static function isValidJWT() : mixed {
+        // On initialise le token.
+        $token = '';
+        // On vérifie si on reçoit un token
+        if(isset($_SERVER['Authorization']))
+            $token = trim($_SERVER['Authorization']);
+        elseif(isset($_SERVER['HTTP_AUTHORIZATION']))
+            $token = trim($_SERVER['HTTP_AUTHORIZATION']);
+        elseif(function_exists('apache_request_headers')){
+            $requestHeaders = apache_request_headers();
+            if(isset($requestHeaders['Authorization'])){
+                $token = trim($requestHeaders['Authorization']);
+            }
+        }
+        // On vérifie que le token reçu commence par 'Bearer'
+        if($token !== '' && preg_match('/Bearer\s(\S+)/', $token, $matches)) {
+            // On extrait le JWT.
+            $token = str_replace('Bearer ', '', $token);
+            if(JWT::isClean($token) && JWT::check($token, SECRET) && !JWT::isExpired($token)) 
+                return $token;
+        } 
+        return false;
+    } 
 }

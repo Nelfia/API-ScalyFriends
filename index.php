@@ -6,10 +6,8 @@ use peps\core\Autoload;
 use peps\core\Cfg;
 use peps\core\DBAL;
 use peps\core\Router;
-use peps\session\SessionDB;
 
 require './peps/core/Autoload.php';
-require './vendor/autoload.php';
 
 // Initialisation de l'autoload (à faire EN PREMIER)
 Autoload::init();
@@ -37,7 +35,8 @@ DBAL::init(
 );
 
 // Initialisation de la gestion des sessions en DB (à faire APRES l'initialisation de la connexion DB).
-// SessionDB::init(Cfg::get('sessionTimeout'), cfg::get('sessionMode'));
+// header('Access-Control-Allow-Origin: *');
+// header('Content-Type: application/json');
 
 // Routage de la requête du client (à faire EN DERNIER).
 Router::route();

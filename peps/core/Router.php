@@ -8,10 +8,11 @@ use Error;
 
 /**
  * Classe 100% statique de routage
- * Offre 5 méthodes de routage:
+ * Offre 6 méthodes de routage:
  *      render(): rendre une vue.
- *      text() :envoyer du text brut (text/plain).
+ *      text() :envoyer du text brut (text/plain)
  *      json() : envoyer du JSON (application/json)
+ *      responseJSON() : envoyer une réponse en JSON (application/json)
  *      download(): envoyer un fichier en flux binaire
  *      redirect(): rediriger côté client
  * Toutes ces méthodes ARRETENT l'éxécution.
@@ -35,7 +36,7 @@ final class Router {
         $verb = filter_input(INPUT_SERVER, 'REQUEST_METHOD', FILTER_SANITIZE_SPECIAL_CHARS) ?: filter_var($_SERVER['REQUEST_METHOD'], FILTER_SANITIZE_SPECIAL_CHARS);
         $uri = filter_input(INPUT_SERVER, 'REQUEST_URI', FILTER_SANITIZE_SPECIAL_CHARS) ?: filter_var($_SERVER['REQUEST_URI'], FILTER_SANITIZE_SPECIAL_CHARS);
         // Si pas de verbe ou pas d'URI, erreur 404.
-        if(!$verb || !$uri) self::render('error404.php');
+        if(!$verb || !$uri) self::json(json_encode('Route not found !'));
         // Charger la table de routage JSON.
         $routesJSON = @file_get_contents(Cfg::get('ROUTES_FILE'));
         // Si fichier introuvable, exception.
@@ -74,8 +75,8 @@ final class Router {
                 return;
             }
         }
-        // Si aucune route trouvée, erreur 404
-        self::render('error404.php');
+        // Si aucune route trouvée, retourne une erreur.
+        self::json('No found route !');
     }
 
     /**
@@ -93,7 +94,7 @@ final class Router {
             PEPS::e(new RouterException(RouterException::PARAMS_ARRAY_CONTAINS_INVALID_KEY));
         }
         // Si mode DEBUG, insérer le tableau des requêtes.
-        if(Cfg::get('EXECUTION_MODE') === ExecutionMode::PROD)
+        if(Cfg::get('EXECUTION_MODE') === ExecutionMode::DEBUG)
             var_dump(PEPS::getQueries());
         // Insérer la vue.
         try {
@@ -129,6 +130,26 @@ final class Router {
         header('Content-Type: application/json');
         // Envoyer la chaîne json au client et arrêter l'exécution
         exit($json);
+    }
+
+    /**
+     * Formule une réponse au client sous forme de chaîne JSON.
+     *
+     * @param boolean $success TRUE si la requête a aboutie, FALSE si erreur.
+     * @param string $message Message de la réponse.
+     * @param array $results Tableau des résultats de la requête.
+     * @return never
+     */
+    public static function responseJson(bool $success, string $message, array $results = []) : never {
+        // Remplir les données de la réponse.
+        $response = array();
+        $response['success'] = $success;
+        $response['http_code'] = http_response_code();
+        $response['message'] = $message;
+        if($results)
+            $response['results'] = $results;
+        // Envoyer la chaîne json au client et arrêter l'exécution
+        self::json(json_encode($response));
     }
 
     /**
