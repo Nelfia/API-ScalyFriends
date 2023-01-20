@@ -62,6 +62,8 @@ final class UserController {
         $response = array();
         $token='';
         // On vérifie si on reçoit un token
+        if(JWT::isValidJWT())
+            $token = 
         if(isset($_SERVER['Authorization']))
             $token = trim($_SERVER['Authorization']);
         elseif(isset($_SERVER['HTTP_AUTHORIZATION']))
@@ -99,18 +101,12 @@ final class UserController {
 
         // Si login OK, générer le JWT et renvoyer réponse en Json.
         if ($user->login($pwd)) {
-            // On crée le header
-            $header = [
-                'typ' => 'JWT',
-                'alg'=> 'HS256'
-            ];
             // On crée le contenu (payload)
             $payload = [
                 'user_id' => $user->idUser,
-                'roles' => $user->role,
-                'email' => $user->email
+                'roles' => $user->role
             ];
-            $token = JWT::generate($header, $payload, SECRET);
+            $token = JWT::generate([], $payload, SECRET);
             $response['success'] = true;
             $response['http_code'] = http_response_code();
             $response['message'] = "Le user est logué!";

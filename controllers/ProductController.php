@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace controllers;
 
-use classes\JWT;
+
+use peps\core\Cfg;
+use peps\core\Router;
+use peps\jwt\JWT;
 use entities\Product;
 use entities\User;
 use Exception;
-use peps\core\Cfg;
-use peps\core\Router;
+
 require_once '.env.local';
 
 
@@ -32,13 +34,17 @@ final class ProductController {
     public static function list() : void {
         // Vérifier si token et si valide.
         $token = JWT::isValidJWT();
+        // Vérifier les droits d'accès du user.
+        if(!User::isGranted("ROLE_USER"))
+            exit('User non autorisé !');
+        else var_dump(User::isGranted("ROLE_USER"));
         // Initialiser le tableau des résultats.
         $results = array();
         // Ajouter le token.
         $results['jwt_token'] = $token;
         if($token){
-            // Récupérer toutes les categories dans l'ordre alphabétique.
-            $products = Product::findAllBy([], []);
+            // Récupérer tous les produits dans l'ordre alphabétique.
+            $products = Product::findAllBy([], ['name' => 'ASC']);
             if($products){
                 $success = true;
                 $message = "Voici la liste de tous les produits";

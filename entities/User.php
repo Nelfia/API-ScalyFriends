@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace entities;
 
-use classes\JWT;
 use peps\core\Entity;
-// use peps\session\LoggableUser;
+use peps\jwt\JWT;
+use peps\jwt\LoggableUser;
 
 /**
  * Entité User.
@@ -15,7 +15,7 @@ use peps\core\Entity;
  * 
  * @see Entity
  */
-class User extends Entity {
+class User extends Entity implements LoggableUser {
     /**
      * PK.
      *
@@ -127,13 +127,13 @@ class User extends Entity {
      */
     protected ?array $cart = [];
 
-    // /**
-    //  * Instance du User logué.
-    //  * Lazy loading.
-    //  *
-    //  * @var self|null
-    //  */
-    // private static ?self $loggedUser = null;
+    /**
+     * Instance du User logué.
+     * Lazy loading.
+     *
+     * @var self|null
+     */
+    private static ?self $loggedUser = null;
 
     /**
      * Constructeur.
@@ -166,22 +166,41 @@ class User extends Entity {
         return false;             
     }
 
+    /**
+     * Retourne le user logué ou null si absent.
+     * Lazy loading.
+     *
+     * @return self|null User logué ou null si token invalide.
+     */
+    public static function getLoggedUser() : ?self {
+        // Vérifier la présence et la validité d'un token.
+        $token = JWT::isValidJWT();
+        // Si $loggedUser non renseigné mais token valide, récupérer la varibale contenant user_id, créer le user, l'hydrater et le stocker.
+        if(!self::$loggedUser && $token) {
+            $idUser = (int)JWT::getPayload($token)['user_id'];
+            self::$loggedUser = new User($idUser);
+            self::$loggedUser->hydrate();
+        }
+        // Sinon, si $loggedUser renseigné, le retourner.
+        return self::$loggedUser ?: null;
+    }
 
-    // /**
-    //  * Retourne le user logué ou null si absent.
-    //  * Lazy loading.
-    //  *
-    //  * @return self|null User logué ou null si aucun user en session.
-    //  */
-    // public static function getLoggedUser() : ?self {
-    //     // Si $loggedUser non renseigné mais idUser présent en session, créer le user, l'hydrater et le stocker.
-    //     if(!self::$loggedUser && isset($_SESSION['idUser'])) {
-    //         self::$loggedUser = new User($_SESSION['idUser']);
-    //         self::$loggedUser->hydrate();
-    //     }
-    //     // Sinon, si $loggedUser renseigné, le retourner.
-    //     return self::$loggedUser ?: null;
-    // }
+    /**
+     * Vérifie les droits d'accès du user logué.
+     *
+     * @param string $role Role du user logué.
+     * @return boolean TRUE si accès autorisé, sinon FALSE.
+     */
+    public static function isGranted(string $role) : bool {
+        // Si user logué
+        if(User::getLoggedUser())
+            $userRoles = json_decode(User::getLoggedUser()->roles);
+            // Vérifier s'il a les droits d'accès et retourner.
+            foreach($userRoles as $userRole)
+                if($userRole === $role)
+                    return true;
+        return false;
+    }
 
     /**
      * Retourne le tableau des commandes du user en lazy loading.

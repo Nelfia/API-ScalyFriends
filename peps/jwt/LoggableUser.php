@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace peps\session;
+namespace peps\jwt;
 
 /**
  * Interface de connexion des utilisateurs.
- * Pour profiter de l'extension "session", la classe entité des utilisateurs DOIT implémenter cette interface.
+ * Pour profiter de l'extension "jwt", la classe entité des utilisateurs DOIT implémenter cette interface.
  */
 interface LoggableUser 
 {
