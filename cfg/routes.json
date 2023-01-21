@@ -115,12 +115,9 @@
         "method" : "UserController.login"
     },
     {
-        "verb" : "GET",
-        "uri" : "/api/users/([1-9][0-9]*)/logout",
-        "method" : "UserController.logout",
-        "params" : [
-            "id"
-        ]
+        "verb" : "POST",
+        "uri" : "/api/users/logout",
+        "method" : "UserController.logout"
     },
     {
         "verb" : "GET",

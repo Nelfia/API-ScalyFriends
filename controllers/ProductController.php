@@ -35,9 +35,10 @@ final class ProductController {
         // Vérifier si token et si valide.
         $token = JWT::isValidJWT();
         // Vérifier les droits d'accès du user.
-        if(!User::isGranted("ROLE_USER"))
+        $user = User::getLoggedUser();
+        if(!$user->isGranted("ROLE_USER"))
             exit('User non autorisé !');
-        else var_dump(User::isGranted("ROLE_USER"));
+        else $user->isGranted("ROLE_USER");
         // Initialiser le tableau des résultats.
         $results = array();
         // Ajouter le token.

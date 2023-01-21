@@ -5,13 +5,10 @@ declare(strict_types=1);
 
 namespace controllers;
 
-use entities\Favoris;
 use entities\User;
 use Exception;
 use peps\core\Router;
 use peps\jwt\JWT;
-
-require_once '.env.local';
 
 /**
  * Classe 100% statique de gestion des utilisateurs.
@@ -23,232 +20,318 @@ final class UserController {
     private function __construct() {}
     
     /**
-     * Affiche le formulaire de création.
+     * Réucpère la liste de tous les users.
+     * 
+     * GET /api/users
+     * Accès: ROLE_ADMIN.
+     *
+     * @return void
+     */
+    public static function list() : void {
+		// Récupérer l'instance du User logué.
+		$user = User::getLoggedUser();
+        // Initialiser le tableau des résultats.
+        $results = array();
+        // Vérifier les droits d'accès du user.
+        $success = $user->isGranted("ROLE_ADMIN");
+        // Si pas de user logué ou role non autorisé
+        if(!$user || !$success){
+            $message = "Vous n'êtes pas autorisé à accéder à cette page.";
+            $results['jwt_token'] = JWT::isValidJWT();
+        } else {
+            $message = "Voici la liste des users.";
+            $users = User::findAllBy([],['lastName'=>'ASC', 'firstName'=> 'ASC']);
+            $results['nb'] = count($users);
+            $results['users'] = $users;
+        };
+        // Envoyer la réponse au client.
+        Router::responseJson($success, $message, $results);
+    }
+    /**
+     * Récupère les informations d'un User.
+     * 
+     * GET /api/users/{id}
+     * Accès: ROLE_USER || ROLE_ADMIN.
+     *
+     * @param array $assocParams Tableau associatif des paramètres.
+     * @return void
+     */
+    public static function show(array $assocParams) : void {
+		// Récupérer l'id du User dont on veut récupérer les données.
+		$idUser = (int)$assocParams['id'];
+		// Récupérer l'instance du User logué.
+		$loggedUser = User::getLoggedUser();
+		// Initialiser le tableau des résultats de la réponse.
+		$results = array();
+		$results['jwt_token'] = JWT::isValidJWT();
+		// Si user non logué ou token invalide.
+		if(!$loggedUser){
+			$success = false;
+			$message = "Vous devez être connecté pour accéder à cette page.";
+			Router::responseJson($success, $message, $results);
+		}
+		// Vérifier les droits d'accès du user.
+		$success = (($loggedUser?->isGranted("ROLE_USER") && ($loggedUser?->idUser === $idUser))||$loggedUser?->isGranted("ROLE_ADMIN"));
+		// Si l'accès est refusé.
+		if(!$success){
+			$message = "Vous n'êtes pas autorisé à accéder à cette page.";
+		} else {
+			$message = "Voici les information du user.";
+			$user = User::findOneBy(['idUser' => $idUser]);
+			// Par mesure de sécurité, retirer le role et le mdp du user dans la réponse.
+			unset($user->pwd);
+			unset($user->roles);
+			$results['user'] = $user;
+		};
+		// Envoyer la réponse au client.
+		Router::responseJson($success, $message, $results);
+    }
+    /**
+	 * Création d'un nouveau compte user.
+     * Enregistre un nouveau User en BD.
      * 
      * POST /api/users
+     * Accès: PUBLIC.
      *
      * @return void
      */
-    public static function create(array $assocParams) : void {
-        // Rendre la vue.
-        Router::render('editUser.php', $assocParams);
-    }
+    public static function create() : void {
+		// Si user logué, destruction du token.
+		if(User::getLoggedUser()) JWT::destroy();
+		// Initialiser le tableau de résultats.
+		$results = [];
+		// Créer un user.
+		$user = new User();
+		// Initialiser le tableau des erreurs.
+		$errors = [];
+		// Ajout de l'accès user.
+		$user->roles = json_encode(["ROLE_USER"]);
+		// Récupérer et valider les données.
+		$user->username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$user->username || mb_strlen($user->username) > 50)
+			$errors[] = 'Username invalide';
 
+		$user->email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL) ?: null;
+		$user->email = filter_var($user->email, FILTER_VALIDATE_EMAIL) ?: null;
+        if(!$user->email || mb_strlen($user->email) > 50)
+			$errors[] = 'Email invalide';
+
+		$user->pwd = filter_input(INPUT_POST, 'pwd', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		$pwdConfirm = filter_input(INPUT_POST, 'pwdConfirm', FILTER_SANITIZE_SPECIAL_CHARS);
+		if(!$user->pwd || mb_strlen($user->pwd) < 4 || ($user->pwd !== $pwdConfirm))
+			$errors[] = "Mot de passe invalide.";
+		else $user->pwd = password_hash($user->pwd, PASSWORD_DEFAULT);
+			
+        // Si aucune erreur, persister le user en tenant compte des éventuels doublons d'username ou email
+		if(!$errors)
+			try {
+				$user->persist();
+			} catch (Exception $e) {
+				$errors[] = $e->getMessage();
+			}
+			$success = !$errors;
+            // Envoyer la réponse au client.
+			if(!$success){
+				$message = "L'utilisateur n'a pas pu être crée.";
+				$results['errors'] = $errors;
+			} else {
+				$message = "L'utilisateur a bien été créé et est désormais logué.";
+				$payload['user_id'] = $user->idUser;
+				$token = JWT::generate([], $payload);
+				$results['jwt_token'] = $token;
+			}
+			// Par sécurité, on retire le mot de passe du user et son role dans la réponse.
+			unset($user->pwd);
+			unset($user->roles);
+			$results['user'] = $user;
+			Router::responseJson($success, $message, $results);
+    }
     /**
-     * Affiche la vue de saisie des identifiants de connexion.
+     * Met à jour les données d'un User en BD.
      * 
-     * GET/user/signin
+     * PUT /api/users/{id}
+     * Accès: ROLE_USER || ROLE_ADMIN.
      *
+     * @param array $assocParams Tableau associatif des paramètres.
      * @return void
      */
-    public static function signin() : void {
-        // Rendre la vue.
-        Router::render('signin.php');
-    }
+    public static function update(array $assocParams) : void {
+		// Récupérer l'id du User dont on veut maj les données.
+		$idUser = (int)$assocParams['id'];
+		// Récupérer l'instance du User logué.
+		$loggedUser = User::getLoggedUser();
+		// Initialiser le tableau des résultats de la réponse.
+		$results = [];
+		$results['jwt_token'] = JWT::isValidJWT();
+		// Si user non logué ou token invalide.
+		if(!$loggedUser){
+			$success = false;
+			$message = "Vous devez être connecté pour accéder à cette page.";
+			Router::responseJson($success, $message, $results);
+		}
+		// Vérifier les droits d'accès du user.
+		$success = (($loggedUser?->isGranted("ROLE_USER") && ($loggedUser?->idUser === $idUser))||$loggedUser?->isGranted("ROLE_ADMIN"));
+		// Si l'accès est refusé.
+		if(!$success){
+			$message = "Vous n'êtes pas autorisé à accéder à cette page.";
+			Router::responseJson($success, $message, $results);
+		}	
+		// Initialiser le tableau des erreurs.
+		$errors = [];
+		// Récupérer le User à mettre à jour.
+		$user = User::findOneBy(['idUser' => $idUser]);
+		// Vérifier les données reçues en PUT.
+		if($_SERVER['REQUEST_METHOD'] == 'PUT') {
+			$_PUT = [];
+			parse_str(file_get_contents("php://input"), $_PUT);
+			str_replace("'----------------------------189053810493892667027381
+			Content-Disposition:_form-data;_name'",'', $_PUT);
+			$tab = explode('=', (string)$_PUT);
+			var_dump($tab);
+			exit;
+		}
 
+
+		// Récupérer et valider les données.
+		$user->email = filter_input(INPUT_SERVER[], 'email', FILTER_SANITIZE_EMAIL) ?: null;
+		var_dump(filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL));
+		$user->email = filter_var($user->email, FILTER_VALIDATE_EMAIL) ?: null;
+        if(!$user->email || mb_strlen($user->email) > 255)
+			$errors[] = 'Email invalide';
+
+		$user->lastName = filter_input(INPUT_POST, 'lastName', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		if($user->lastName && (mb_strlen($user->lastName) > 255 || mb_strlen($user->lastName) < 2))
+			$errors[] = "Nom de famille invalide.";
+
+		$user->firstName = filter_input(INPUT_POST, 'firstName', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		if($user->firstName && (mb_strlen($user->firstName) > 200 || mb_strlen($user->firstName) < 2))
+			$errors[] = "Prénom trop long.";
+		
+		$user->mobile = filter_input(INPUT_POST, 'mobile', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		// Enlever tous les caractères non numériques.
+		if($user->mobile) {
+			$user->mobile = preg_replace('`[^0-9]`', '', $user->mobile);
+			$isValidMobile = (bool)preg_match('`^0[1-9]([0-9]{2}){4}$`', $user->mobile);
+			if(!$isValidMobile) 
+				$errors[] = "Numéro de téléphone erroné.";
+		}
+
+		$user->postMail = filter_input(INPUT_POST, 'postMail', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		if($user->postMail !== null){
+			$isValidPostMail = (bool)preg_match('`^[0-9]+ [a-z]\i+ [a-z]\i+`',$user->postMail);
+			if(mb_strlen($user->postMail) > 255 || mb_strlen($user->postMail) < 6 || !$isValidPostMail)
+				$errors[] = "Adresse incorrecte.";
+        }
+
+		$user->postMailComplement = filter_input(INPUT_POST, 'postMailComplement', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		if($user->postMailComplement) {
+			if(mb_strlen($user->postMailComplement) > 255)
+				$errors[] = "Complément d'adresse trop long.";
+		}
+		
+		$user->zipCode = filter_input(INPUT_POST, 'zipCode', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		if($user->zipCode) {
+			$isValidZipCode = preg_match('`^[0-9]{4}0$`', $user->zipCode);
+			if(!$isValidZipCode) $errors[] = "Code postal invalide.";
+		}
+
+		$user->city = filter_input(INPUT_POST, 'city', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		if($user->city && mb_strlen($user->city) > 255)
+			$errors[] = "Commune ou ville trop longue.";
+
+		// Si aucune erreur, persister le user en tenant compte des éventuels doublons d'username ou email
+		if(!$errors) {
+			try {
+				$user->persist();
+				exit(json_encode($user));
+			} catch (Exception $e) {
+				$errors[] = $e->getMessage();
+			}		
+		}
+		$success = !$errors;
+		// Envoyer la réponse au client.
+		if(!$success){
+			$message = "L'utilisateur n'a pas pu être mis à jour.";
+			$results['errors'] = $errors;
+		} else {
+			$message = "L'utilisateur a bien été mis à jour.";
+		}
+		// Par sécurité, on retire le mot de passe du user et son role dans la réponse.
+		unset($user->pwd);
+		unset($user->roles);
+		$results['user'] = $user;
+		Router::responseJson($success, $message, $results);
+    }
     /**
-     * Tente de loguer un utilisateur en session.
+     * Supprime un User en BD.
      * 
-     * POST /users/login
+     * DELETE /api/users/{id}
+     * Accès: ROLE_USER || ROLE_ADMIN.
+     *
+     * @param array $assocParams Tableau associatif des paramètres.
+     * @return void
+     */
+    public static function delete(array $assocParams) : void {
+        $user = User::findOneBy(["idUser" => (int)$assocParams['idUser']]);
+        // Rendre la vue.
+        Router::render('editUser.php', ['user' => $user]);
+    }
+    /**
+     * Tente de loguer un utilisateur et retourne un jeton JWT.
+     * 
+     * POST /api/users/login
+     * Accès: PUBLIC.
      *
      * @return void
      */
     public static function login() : void {
+		// Vérifier si user logué et détruire son token.
+		if(User::getLoggedUser()) JWT::destroy();
         // Créer un user
         $user = new User();
         // Initialiser le tableau des erreurs
         $errors = [];
-        // Initialiser la réponse JSON.
-        $response = array();
-        $token='';
-        // On vérifie si on reçoit un token
-        if(JWT::isValidJWT())
-            $token = 
-        if(isset($_SERVER['Authorization']))
-            $token = trim($_SERVER['Authorization']);
-        elseif(isset($_SERVER['HTTP_AUTHORIZATION']))
-            $token = trim($_SERVER['HTTP_AUTHORIZATION']);
-        elseif(function_exists('apache_request_headers')){
-            $requestHeaders = apache_request_headers();
-            if(isset($requestHeaders['Authorization'])){
-                $token = trim($requestHeaders['Authorization']);
-            }
-        }
-        // On vérifie que le token reçu commence par 'Bearer'
-        if($token !== '' && preg_match('/Bearer\s(\S+)/', $token, $matches)){
-            // On extrait le token
-            $token = str_replace('Bearer ', '', $token);
-            if(JWT::isClean($token)) {
-                if(JWT::check($token, SECRET)){
-                    if(!JWT::isExpired($token)){
-                        $payload = JWT::getPayload($token);
-                        $user->idUser = $payload['user_id'];
-                        $user->hydrate();
-                        $user->loggedUser = $user;
-                        $response['success'] = true;
-                        $response['http_code'] = http_response_code();
-                        $response['message'] = "Le user est logué!";
-                        $response['results']['user'] = $user;
-                        Router::json(json_encode($response));
-                        exit;
-                    }
-                }
-            }
-        }
-        // Récupérer les données et tenter le login
+        // Initialiser le tableau de la réponse JSON.
+        $results = array();
+        // Récupérer les données et tenter le login.
         $user->username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_SPECIAL_CHARS);
         $pwd = filter_input(INPUT_POST, 'pwd', FILTER_SANITIZE_SPECIAL_CHARS);
-
         // Si login OK, générer le JWT et renvoyer réponse en Json.
-        if ($user->login($pwd)) {
+		$success = $user->login($pwd);
+        if ($success) {
             // On crée le contenu (payload)
-            $payload = [
-                'user_id' => $user->idUser,
-                'roles' => $user->role
-            ];
-            $token = JWT::generate([], $payload, SECRET);
-            $response['success'] = true;
-            $response['http_code'] = http_response_code();
-            $response['message'] = "Le user est logué!";
-            $response['results']['user'] = $user;
-            $response['results']['jwt_token'] = $token;
+            $payload['user_id'] = $user->idUser ;
+            $token = JWT::generate([], $payload);
+            $message = "Vous êtes désormais connecté !";
+            $results['jwt_token'] = $token;
         } else{
-            $response['success'] = false;
-            $response['http_code'] = http_response_code();
-            $response['message'] = "Login failed !";
-            $response['results']['user'] = $user;
-            $response['results']['errors'] = $errors;
+			$message = "Login failed !";
+            $results['errors'] = $errors;
         }
-        Router::json(json_encode($response));
-    }
-    
+		// Par mesure de sécurité, retirer le role et le mdp du user dans la réponse.
+		unset($user->pwd);
+		unset($user->roles);
+		$results['user'] = $user;
+        Router::responseJson($success, $message, $results);
+	}
     /**
-     * Génère un JWT.
+     * Délogue l'utilisateur via son JWT.
+     * Le JWT DEVRA également être maj côté client (si enregistré dans un strore par exemple).
      * 
-     * POST /user/authenticate.php
-     *
-     * @return void
-     */
-    public static function auth() : void {
-            Router::render('authenticate.php', []);
-    }
-
-    /**
-     * Délogue l'utilisateur en session.
-     * 
-     * POST /user/logout
+     * POST /api/users/logout
+     * Accès: ROLE_USER || ROLE_ADMIN.
      *
      * @return void
      */
     public static function logout() : void {
-        // Détruire les variables de session.
-        session_destroy();
+        // Détruire le token.
+        $success = JWT::destroy();
+        var_dump(JWT::destroy());
+        $message = "Token supprimé";
+        $results = array();
+        $results['jwt_token'] = JWT::isValidJWT()?: '';
         // Rediriger
-        Router::redirect('/user/signin');
+        Router::responseJson($success, $message, $results);
     }
-
-    /**
-     * Affiche la page d'édition du user.
-     * 
-     * GET /edit/{id}
-     *
-     * @return void
-     */
-    public static function edit(array $assocParams) : void {
-        $user = User::findOneBy(["idUser" => (int)$assocParams['idUser']]);
-        var_dump($user);
-        // Rendre la vue.
-        Router::render('editUser.php', ['user' => $user]);
-    }
-
-    // /**
-    //  * Retourne le tableau des favoris du user.
-    //  * 
-    //  * GET /user/favoris/{id}
-    //  *
-    //  * @return void
-    //  */
-    // public static function favoris(array $assocParams = []) : void {
-    //     $favoris = Favoris::findAllBy(["idUser" => (int)$assocParams['idUser']]);
-    //     // var_dump($user);
-    //     // Rendre la vue.
-    //     Router::json(json_encode($favoris));
-    // }
-
-    // /**
-    //  * Affiche les commandes passées par le user.
-    //  * 
-    //  * GET /user/orders/{id}
-    //  *
-    //  * @return void
-    //  */
-    // public static function orders(array $assocParams = []) : void {
-    //     $user = User::findOneBy(["idUser" => (int)$assocParams['idUser']]);
-    //     // Rendre la vue.
-    //     Router::json(json_encode($user->getCommandes()));
-    // }
-
-    // /**
-    //  * Sauvegarde le user en DB.
-    //  * 
-    //  * POST /user/save
-    //  *
-    //  * @return void
-    //  */
-    // public static function save() : void {
-    //     // Créer un user.
-    //     $user = new User();
-    //     // Initialiser le tableau des erreurs
-    //     $errors = [];
-    //     // Récupérer et valider les données
-    //     $user->idUser = filter_input(INPUT_POST, 'idUser', FILTER_VALIDATE_INT) ?: null;
-    //     $user->username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-    //     if(!$user->username || mb_strlen($user->username) > 50)
-    //     $errors[] = UserControllerException::INVALID_USERNAME;
-    //     $user->pwd = password_hash(filter_input(INPUT_POST, 'pwd', FILTER_SANITIZE_SPECIAL_CHARS), PASSWORD_DEFAULT) ?: null;
-    //     if(!$user->pwd || mb_strlen($user->pwd) > 255)
-    //     $errors[] = UserControllerException::INVALID_PWD;
-    //     $user->email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL) ?: null;
-    //     if(!$user->email || mb_strlen($user->email) > 50)
-    //     $errors[] = UserControllerException::INVALID_EMAIL;
-    //     $user->nom = filter_input(INPUT_POST, 'nom', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-    //     if(!$user->nom || mb_strlen($user->nom) > 50)
-    //     $errors[] = UserControllerException::INVALID_NAME;
-    //     $user->prenom = filter_input(INPUT_POST, 'prenom', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-    //     if(!$user->prenom || mb_strlen($user->prenom) > 50)
-    //     $errors[] = UserControllerException::INVALID_FIRSTNAME;
-    //     $user->telephone = filter_input(INPUT_POST, 'telephone', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-    //     if(!$user->telephone || mb_strlen($user->telephone) > 10)
-    //     $errors[] = UserControllerException::INVALID_MOBILE;
-    //     $user->adressePostale = filter_input(INPUT_POST, 'adressePostale', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-    //     if(!$user->adressePostale || mb_strlen($user->adressePostale) > 50)
-    //     $errors[] = UserControllerException::INVALID_POSTMAIL;
-    //     $user->complementAdresse = filter_input(INPUT_POST, 'complementAdresse', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-    //     if($user->complementAdresse && mb_strlen($user->complementAdresse) > 50)
-    //     $errors[] = UserControllerException::INVALID_POSTMAIL_COMPLEMENT;
-    //     $user->codePostal = filter_input(INPUT_POST, 'codePostal', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-    //     if(!$user->codePostal || mb_strlen($user->codePostal) > 5)
-    //     $errors[] = UserControllerException::INVALID_POSTCODE;
-    //     $user->commune = filter_input(INPUT_POST, 'commune', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-    //     if(!$user->commune || mb_strlen($user->commune) > 50)
-    //     $errors[] = UserControllerException::INVALID_CITY;
-    //     $msg = $user->idUser === null ? "Votre compte a bien été créé." : "Votre compte a bien été mis à jour.";
-    //     $user->role ?? json_encode("ROLE_USER");
-    //     // Si aucune erreur, persister le produit et rediriger
-    //     if(!$errors){
-    //         // Persister en tenant compte des éventuels doublons de username & email
-    //         try {
-    //             $user->persist();
-    //         } catch (Exception) {
-    //             $errors[] = UserControllerException::INVALID_DUPLICATE_USERNAME;
-    //         }
-    //         // Si toujours aucune erreur, rediriger.
-    //         if(!$errors) {
-    //             Router::json(json_encode($msg));
-    //         }
-    //     }
-    //     // Rendre la vue.
-    //     Router::render('editUser.php', ['user' => $user, 'errors' => $errors]);
-    // }
 
 }

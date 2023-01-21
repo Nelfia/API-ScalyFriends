@@ -39,8 +39,8 @@ final class JWT {
      * @param array $header Header du Token. Si tableau vide passé en paramètre, par défaut => self::$header (HS256).
      * @param array $payload Données passées dans le token.
      * @param string $secret Phrase secrète pour encoder JWT. Par défaut => SECRET dans .env.local.
-     * @param int $validity Durée de validité du Token en secondes (par défaut: 1 jour).
-     * @return string JWT
+     * @param int $timeout Durée de validité du Token en secondes (par défaut: 1 jour).
+     * @return string JWT - Token du user logué.
      */
     public static function generate(array $header, array $payload, string $secret = SECRET, int $timeout = 86400): string {
         // Si tableau vide passé en paramètre, par défaut utiliser self::$header ('alg' => 'HS256').
@@ -107,21 +107,6 @@ final class JWT {
     }
 
     /**
-     * Vérifie si le token a expiré ou non.
-     *
-     * @param string $token Token à vérifier.
-     * @return boolean Retourne TRUE si expiré, FALSE si toujours actif.
-     */
-    public static function isExpired(string $token) : bool {
-        // On récupère le payload du token.
-        $payload = self::getPayload($token);
-        // On récupère la date actuelle.
-        $now = new DateTime();
-        // Vérifie si le token est expiré.
-        return $payload['exp'] < $now->getTimestamp();
-    }
-
-    /**
      * Vérifie la présence d'un token et sa validité.
      *
      * @return string $token Si Token reçu et valide.
@@ -151,6 +136,42 @@ final class JWT {
         } 
         return false;
     } 
+
+    /**
+     * Détruit le token.
+     *
+     * @param string $token 
+     * @return boolean
+     */
+    public static function destroy() : bool {
+        // Vérifier si token et suppression.
+        if(isset($_SERVER['Authorization']))
+            unset($_SERVER['Authorization']);
+        elseif(isset($_SERVER['HTTP_AUTHORIZATION']))
+            unset($_SERVER['HTTP_AUTHORIZATION']);
+        elseif(function_exists('apache_request_headers')){
+            $requestHeaders = apache_request_headers();
+            if(isset($requestHeaders['Authorization'])){
+                unset($requestHeaders['Authorization']);
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Vérifie si le token a expiré ou non.
+     *
+     * @param string $token Token à vérifier.
+     * @return boolean Retourne TRUE si expiré, FALSE si toujours actif.
+     */
+    public static function isExpired(string $token) : bool {
+        // On récupère le payload du token.
+        $payload = self::getPayload($token);
+        // On récupère la date actuelle.
+        $now = new DateTime();
+        // Vérifie si le token est expiré.
+        return $payload['exp'] < $now->getTimestamp();
+    }
 
     /**
      * Retourne le header du token.

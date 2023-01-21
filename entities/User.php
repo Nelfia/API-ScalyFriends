@@ -191,7 +191,7 @@ class User extends Entity implements LoggableUser {
      * @param string $role Role du user logué.
      * @return boolean TRUE si accès autorisé, sinon FALSE.
      */
-    public static function isGranted(string $role) : bool {
+    public function isGranted(string $role) : bool {
         // Si user logué
         if(User::getLoggedUser())
             $userRoles = json_decode(User::getLoggedUser()->roles);
