@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace controllers;
 
 use entities\User;
+use Error;
 use Exception;
 use peps\core\Router;
 use peps\jwt\JWT;
@@ -33,7 +34,7 @@ final class UserController {
         // Initialiser le tableau des résultats.
         $results = array();
         // Vérifier les droits d'accès du user.
-        $success = $user->isGranted("ROLE_ADMIN");
+        $success = $user?->isGranted("ROLE_ADMIN") !== null ?: false;
         // Si pas de user logué ou role non autorisé
         if(!$user || !$success){
             $message = "Vous n'êtes pas autorisé à accéder à cette page.";
@@ -123,28 +124,29 @@ final class UserController {
 		else $user->pwd = password_hash($user->pwd, PASSWORD_DEFAULT);
 			
         // Si aucune erreur, persister le user en tenant compte des éventuels doublons d'username ou email
-		if(!$errors)
+		if(!$errors){
 			try {
 				$user->persist();
 			} catch (Exception $e) {
 				$errors[] = $e->getMessage();
 			}
-			$success = !$errors;
-            // Envoyer la réponse au client.
-			if(!$success){
-				$message = "L'utilisateur n'a pas pu être crée.";
-				$results['errors'] = $errors;
-			} else {
-				$message = "L'utilisateur a bien été créé et est désormais logué.";
-				$payload['user_id'] = $user->idUser;
-				$token = JWT::generate([], $payload);
-				$results['jwt_token'] = $token;
-			}
-			// Par sécurité, on retire le mot de passe du user et son role dans la réponse.
-			unset($user->pwd);
-			unset($user->roles);
-			$results['user'] = $user;
-			Router::responseJson($success, $message, $results);
+		}	
+		$success = !$errors;
+		// Envoyer la réponse au client.
+		if(!$success){
+			$message = "L'utilisateur n'a pas pu être crée.";
+			$results['errors'] = $errors;
+		} else {
+			$message = "L'utilisateur a bien été créé et est désormais logué.";
+			$payload['user_id'] = $user->idUser;
+			$token = JWT::generate([], $payload);
+			$results['jwt_token'] = $token;
+		}
+		// Par sécurité, on retire le mot de passe du user et son role dans la réponse.
+		unset($user->pwd);
+		unset($user->roles);
+		$results['user'] = $user;
+		Router::responseJson($success, $message, $results);
     }
     /**
      * Met à jour les données d'un User en BD.
@@ -180,34 +182,25 @@ final class UserController {
 		$errors = [];
 		// Récupérer le User à mettre à jour.
 		$user = User::findOneBy(['idUser' => $idUser]);
-		// Vérifier les données reçues en PUT.
-		if($_SERVER['REQUEST_METHOD'] == 'PUT') {
-			$_PUT = [];
-			parse_str(file_get_contents("php://input"), $_PUT);
-			str_replace("'----------------------------189053810493892667027381
-			Content-Disposition:_form-data;_name'",'', $_PUT);
-			$tab = explode('=', (string)$_PUT);
-			var_dump($tab);
-			exit;
-		}
 
+		// Récupérer le tableau des données reçues en PUT et les mettre dans la Super Globale $_PUT.
+		parse_str(file_get_contents("php://input"),$_PUT);
 
 		// Récupérer et valider les données.
-		$user->email = filter_input(INPUT_SERVER[], 'email', FILTER_SANITIZE_EMAIL) ?: null;
-		var_dump(filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL));
+		$user->email = filter_var($_PUT['email'], FILTER_SANITIZE_EMAIL) ?: null;
 		$user->email = filter_var($user->email, FILTER_VALIDATE_EMAIL) ?: null;
         if(!$user->email || mb_strlen($user->email) > 255)
 			$errors[] = 'Email invalide';
 
-		$user->lastName = filter_input(INPUT_POST, 'lastName', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		$user->lastName = filter_var($_PUT['lastName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
 		if($user->lastName && (mb_strlen($user->lastName) > 255 || mb_strlen($user->lastName) < 2))
 			$errors[] = "Nom de famille invalide.";
 
-		$user->firstName = filter_input(INPUT_POST, 'firstName', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		$user->firstName = filter_var($_PUT['firstName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
 		if($user->firstName && (mb_strlen($user->firstName) > 200 || mb_strlen($user->firstName) < 2))
 			$errors[] = "Prénom trop long.";
 		
-		$user->mobile = filter_input(INPUT_POST, 'mobile', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		$user->mobile = filter_var($_PUT['mobile'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
 		// Enlever tous les caractères non numériques.
 		if($user->mobile) {
 			$user->mobile = preg_replace('`[^0-9]`', '', $user->mobile);
@@ -216,26 +209,26 @@ final class UserController {
 				$errors[] = "Numéro de téléphone erroné.";
 		}
 
-		$user->postMail = filter_input(INPUT_POST, 'postMail', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		$user->postMail = filter_var($_PUT['postMail'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
 		if($user->postMail !== null){
 			$isValidPostMail = (bool)preg_match('`^[0-9]+ [a-z]\i+ [a-z]\i+`',$user->postMail);
 			if(mb_strlen($user->postMail) > 255 || mb_strlen($user->postMail) < 6 || !$isValidPostMail)
 				$errors[] = "Adresse incorrecte.";
         }
 
-		$user->postMailComplement = filter_input(INPUT_POST, 'postMailComplement', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		$user->postMailComplement = filter_var($_PUT['postMailComplement'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
 		if($user->postMailComplement) {
 			if(mb_strlen($user->postMailComplement) > 255)
 				$errors[] = "Complément d'adresse trop long.";
 		}
 		
-		$user->zipCode = filter_input(INPUT_POST, 'zipCode', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		$user->zipCode = filter_var($_PUT['zipCode'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
 		if($user->zipCode) {
 			$isValidZipCode = preg_match('`^[0-9]{4}0$`', $user->zipCode);
 			if(!$isValidZipCode) $errors[] = "Code postal invalide.";
 		}
 
-		$user->city = filter_input(INPUT_POST, 'city', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+		$user->city = filter_var($_PUT['city'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
 		if($user->city && mb_strlen($user->city) > 255)
 			$errors[] = "Commune ou ville trop longue.";
 
@@ -243,7 +236,6 @@ final class UserController {
 		if(!$errors) {
 			try {
 				$user->persist();
-				exit(json_encode($user));
 			} catch (Exception $e) {
 				$errors[] = $e->getMessage();
 			}		
@@ -272,9 +264,42 @@ final class UserController {
      * @return void
      */
     public static function delete(array $assocParams) : void {
-        $user = User::findOneBy(["idUser" => (int)$assocParams['idUser']]);
-        // Rendre la vue.
-        Router::render('editUser.php', ['user' => $user]);
+		// Récupérer l'id du User dont on veut supprimer les données.
+		$idUser = (int)$assocParams['id'];
+		// Récupérer l'instance du User logué.
+		$loggedUser = User::getLoggedUser();
+		// Initialiser le tableau des résultats de la réponse.
+		$results = [];
+		$results['jwt_token'] = JWT::isValidJWT();
+		// Si user non logué ou token invalide.
+		if(!$loggedUser){
+			$success = false;
+			$message = "Vous devez être connecté pour accéder à cette page.";
+			Router::responseJson($success, $message, $results);
+		}
+		// Vérifier les droits d'accès du user.
+		$success = (($loggedUser?->isGranted("ROLE_USER") && ($loggedUser?->idUser === $idUser))||$loggedUser?->isGranted("ROLE_ADMIN"));
+		// Si l'accès est refusé.
+		if(!$success){
+			$message = "Vous n'êtes pas autorisé à accéder à cette page.";
+			Router::responseJson($success, $message, $results);
+		}
+		// Initialiser le tableau des erreurs.
+		$errors = [];
+		// Récupérer le User à mettre à jour.
+		$user = User::findOneBy(['idUser' => $idUser]);
+		if($user) {
+			$results['user'] = $user;
+			try {
+				$success = $user->remove();
+				$message = "L'utilisateur a bien été supprimé";
+			} catch (Error $e) {
+				$errors[] = $e->getMessage();
+			}
+		} else {
+			$message = "Aucun User trouvé.";
+		}
+		Router::responseJson($success, $message, $results);
     }
     /**
      * Tente de loguer un utilisateur et retourne un jeton JWT.

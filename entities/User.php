@@ -194,7 +194,7 @@ class User extends Entity implements LoggableUser {
     public function isGranted(string $role) : bool {
         // Si user logué
         if(User::getLoggedUser())
-            $userRoles = json_decode(User::getLoggedUser()->roles);
+            $userRoles = json_decode(User::getLoggedUser()?->roles)?: null;
             // Vérifier s'il a les droits d'accès et retourner.
             foreach($userRoles as $userRole)
                 if($userRole === $role)

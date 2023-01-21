@@ -39,8 +39,5 @@ class CfgApp extends Cfg {
 
         // Devise.
         self::register('appCurrency', 'EUR');
-
-        // Instance de NumberFormatter pour formater un nombre avec 2 décimales selon la locale.
-        self::register('appLocale2dec', NumberFormatter::create(self::get('appLocale'), NumberFormatter::PATTERN_DECIMAL, '#,##0.00'));
     }
 }

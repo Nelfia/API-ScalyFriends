@@ -1,5 +1,8 @@
 # Démarrer le moteur de ré-écriture d'URL.
 RewriteEngine on
+# Ajout de la superGlobale $_PUT
+RewriteCond %{REQUEST_METHOD} ^PUT$
+RewriteRule .* - [E=HTTP_X_HTTP_METHOD_OVERRIDE:PUT]
 # Ne pas rediriger les requêtes vers /assets.
 RewriteRule ^assets/(.*)$ assets/$1 [L]
 # Rediriger toutes les requêtes vers le contrôleur frontal.

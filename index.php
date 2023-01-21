@@ -23,7 +23,7 @@ match ($serverIP) {
     default => exit("Cfg class not found for server IP.")
 };
 
-// Initialisation de la connexion DB (à faire AVANT l'initialisation de la gestion des ssessions).
+// Initialisation de la connexion DB.
 DBAL::init(
     Cfg::get('dbDriver'),
     Cfg::get('dbHost'),
@@ -34,9 +34,7 @@ DBAL::init(
     Cfg::get('dbCharset')
 );
 
-// Initialisation de la gestion des sessions en DB (à faire APRES l'initialisation de la connexion DB).
-// header('Access-Control-Allow-Origin: *');
-// header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
 
 // Routage de la requête du client (à faire EN DERNIER).
 Router::route();

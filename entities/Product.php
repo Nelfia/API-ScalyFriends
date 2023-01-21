@@ -51,6 +51,12 @@ class Product extends Entity  {
      */
     public ?string $description = null;
     /**
+     * Référence unique du produit.
+     *
+     * @var string|null
+     */
+    public ?string $ref = null;
+    /**
      * Prix du produit.
      *
      * @var float|null
@@ -128,7 +134,14 @@ class Product extends Entity  {
      * @var bool|null TRUE si visible, FALSE si "supprimé".
      */
     public ?bool $isVisible = null;
-
+    /**
+     * Propriété de compte des instances crées.
+     * Attention! Prend en compte TOUTES les produits créés.
+     * Ne considère pas les suppressions...
+     *
+     * @var integer
+     */
+    protected static int $count = 0;
     /**
      * Instance du User qui a créé le produit.
      * Chargement en lazy loading.
@@ -144,8 +157,16 @@ class Product extends Entity  {
      */
     public function __construct(?int $idProduct = null) {
         $this->idProduct = $idProduct;
+        self::$count++;
     }
-
+    /**
+     * Retourne le nombre d'instances de Product créées depuis le dabut.
+     *
+     * @return integer
+     */
+    public static function getCount(): int {
+        return self::$count;
+    }
     /**
      * Retourne l'auteur du produit en lazy loading.
      *
