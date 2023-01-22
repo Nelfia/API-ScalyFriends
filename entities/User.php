@@ -349,6 +349,6 @@ class User extends Entity implements LoggableUser {
      * @return bool TRUE si valide, sinon FALSE.
      */
     public function isValidCity() : bool {
-        return mb_strlen($this->postMailComplement) < 255;
+        return (mb_strlen($this->city) < 255);
     }
 }

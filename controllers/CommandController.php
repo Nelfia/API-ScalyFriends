@@ -8,7 +8,6 @@ use DateTime;
 use entities\Command;
 use peps\core\Router;
 use peps\jwt\JWT;
-use entities\Product;
 use entities\User;
 use Error;
 use Exception;
@@ -92,33 +91,29 @@ final class CommandController {
      * Un même user ne DEVRAIT avoir qu'un seul panier.
      *
      * POST /api/orders
-     * Accès: PUBLIC.
+     * Accès: PUBLIC (hors ADMIN).
      * 
      * @return void
      */
     public static function create() : void {
         // Initialiser le tableau des résultats.
         $results = [];
-        // Créer une nouvelle commande.
-        $command = new Command();
-        // Créer une nouvelle commande.
-        $command->status = 'cart';
-        // Vérifier si user connecté.
+        // Vérifier si user connecté, récupérer son token et l'insérer dans la réponse.
         $user = User::getLoggedUser();
-        // Si user connecté.
-        if($user){
-            // Récupérer son token et l'insérer dans la réponse.
-            $token = JWT::isValidJWT();
-            $results['jwt_token'] = $token;
-            // Vérifier que le user n'a pas déjà un panier (max. 1 par user)
-            if($user->getCart()) {
-                $results['cart'] = $user->getCart();
-                Router::responseJson(false, "Création impossible, l'utilisateur a déjà un panier.", $results);
-            }
-            // Récupérer son id et l'insérer dans la commande.
-            $command->idCustomer = $user->idUser;
+        $results['jwt_token'] = JWT::isValidJWT();
+        // Si user connecté et que ce n'est pas un ADMIN.
+        if($user?->isGranted('ROLE_ADMIN')){
+            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.", $results);
         }
-        // Ajouter la date de dernier changement.
+        // Vérifier que le user n'a pas déjà un panier (max. 1 par user)
+        if($user?->getCart()) {
+            $results['cart'] = $user->getCart();
+            Router::responseJson(false, "Création impossible, l'utilisateur a déjà un panier.", $results);
+        }
+        // Créer et remplir la nouvelle commande.
+        $command = new Command();
+        $command->status = 'cart';
+        $command->idCustomer = $user?->idUser;
         $command->lastChange = date('Y-m-d H:i:s');
         // Persister la commande en BD.
         $command->persist();
@@ -140,108 +135,17 @@ final class CommandController {
     public static function update(array $assocParams) : void {
         // Récupérer l'id de la commande.
         $idCommand = (int)$assocParams['id'] ?? null;
-        // Récupérer la commande.
-        $command = Command::findOneBy(['idCommand' => $idCommand]);
-        // Récupérer les données reçues en PUT et les mettre dans la "Super Globale" $_PUT.
-		parse_str(file_get_contents("php://input"),$_PUT);
-        // Initialiser le tableau des erreurs.
-        $errors = [];
         // Initialiser le tableau de la réponse.
         $results = [];
+        // Récupérer la commande.
+        $command = Command::findOneBy(['idCommand' => $idCommand]);
         // Si pas de commande, envoyer réponse au client.
         if(!$command)
             Router::responseJson(false, "Aucune commande trouvée.");
-        // Récupérer 
-        $user = User::getLoggedUser();
         // Si status commande = 'cart'
         if($command->status === 'cart') {
-            // Si user non inscrit (ROLE_PUBLIC), le créer.
-            if(!$user){
-                $user = new User();
-                $user->roles = json_encode(["ROLE_PUBLIC"]);
-            }
-            // Récupérer et valider les données.
-            $user->email = filter_var($_PUT['email'], FILTER_SANITIZE_EMAIL) ?: null;
-            $user->email = filter_var($user->email, FILTER_VALIDATE_EMAIL) ?: null;
-            if(!$user->email || mb_strlen($user->email) > 50)
-                $errors[] = 'Email invalide';
-
-            $user->lastName = filter_var($_PUT['lastName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if(!$user->lastName || mb_strlen($user->lastName) > 255 || mb_strlen($user->lastName) < 2)
-                $errors[] = "Nom de famille invalide.";
-    
-            $user->firstName = filter_var($_PUT['firstName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if(!$user->firstName || mb_strlen($user->firstName) > 200 || mb_strlen($user->firstName) < 2)
-                $errors[] = "Prénom trop long.";
-            
-            $user->mobile = filter_var($_PUT['mobile'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if($user->mobile) {
-                // Enlever tous les caractères non numériques.
-                $user->mobile = preg_replace('`[^0-9]`', '', $user->mobile);
-                $isValidMobile = (bool)preg_match('`^0[1-9]([0-9]{2}){4}$`', $user->mobile);
-            }
-            if(!$user->mobile || !$isValidMobile) {
-                $errors[] = "Numéro de téléphone erroné.";
-            }
-    
-            $user->postMail = filter_var($_PUT['postMail'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if(!$user->postMail || mb_strlen($user->postMail) > 255 || mb_strlen($user->postMail) < 6 ){
-                $errors[] = "Adresse incorrecte.";
-            }
-    
-            $user->postMailComplement = filter_var($_PUT['postMailComplement'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if($user->postMailComplement) {
-                if(mb_strlen($user->postMailComplement) > 255)
-                    $errors[] = "Complément d'adresse trop long.";
-            }
-            
-            $user->zipCode = filter_var($_PUT['zipCode'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if($user->zipCode)
-                $isValidZipCode = preg_match('`^[0-9]{4}0$`', $user->zipCode);
-            if(!$user->zipCode || !$isValidZipCode) 
-                $errors[] = "Code postal invalide.";
-    
-            $user->city = filter_var($_PUT['city'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if(!$user->city || mb_strlen($user->city) > 255)
-                $errors[] = "Commune ou ville incorrecte.";
+            CommandController::updateCartCommand($command);
         }
-        // Si aucune erreur, tenter de persister le user en tenant compte de l'email (unique)
-        if(!$errors){
-            try {
-                $user->persist();
-            } catch (Error) {
-                $errors[] = "Un utilisateur existe déjà avec cet email, veuillez vous connecter";
-            }
-        }
-        // Récupérer le token si existant et l'inclure dans la réponse avec le user.
-        $token = JWT::isValidJWT();
-        $results['jwt_token'] = $token;
-        $results['customer'] = $user;
-        // Si toujours aucune erreur, mettre à jour la commande.
-        if(!$errors){
-            $command->idCustomer = $user->idUser;
-            $command->status = 'open';
-            $command->orderDate = date('Y-m-d H:i:s');
-            $command->lastChange = $command->orderDate;
-            $command->ref = date('YmdHis') . $command->idCustomer;
-            // Tenter de persister en tenant compte des éventuels doublon de ref.
-            try {
-                $command->persist();
-            } catch (Exception) {
-                $errors[] = "Doublon de référence.";
-            } 
-        }
-        $success = !$errors;
-        $command->getLines();
-        $results['order'] = $command;
-        if($success)
-            $message = "Merci de votre confiance. Votre commande a bien été validée.";
-        else{
-            $message = "La commande n'a pas pu être validée.";
-            $results['errors'] = $errors;
-        }
-        // Envoyer la réponse au client.
-        Router::responseJson($success, $message, $results);
     }
     /**
      * Supprime une commande status "cart"
@@ -281,5 +185,100 @@ final class CommandController {
         $results['nb'] = $nb;
         $results['jwt_token'] = JWT::isValidJWT();
         Router::responseJson(true, "Les paniers obsolètes ont bien été supprimés.", $results);
+    }
+    /**
+     * Récupère et valide les données de mise à jour d'un user reçues en PUT.
+     *
+     * @param Command $command
+	 * @return array l'instance du User et le tableau des erreurs.
+     */
+    private static function processingUserOnCommand(Command $command) : array {
+        // Récupérer les données reçues en PUT et les mettre dans la "Super Globale" $_PUT.
+		parse_str(file_get_contents("php://input"),$_PUT);
+        // Initialiser le tableau des erreurs.
+        $errors = [];
+        // Récupérer le user logué.
+        $user = User::getLoggedUser();
+        // Si user non logué, le créer (ROLE_PUBLIC).
+        if(!$user){
+            $user = new User();
+            $user->roles = json_encode(["ROLE_PUBLIC"]);
+        }
+        // Valider les données.
+        $user->email = filter_var($_PUT['email'], FILTER_SANITIZE_EMAIL) ?: null;
+        if(!$user->email || !$user->isValidEmail())
+            $errors[] = 'Email invalide';
+        $user->lastName = filter_var($_PUT['lastName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$user->lastName || !$user->isValidLastName())
+            $errors[] = "Nom de famille invalide.";
+        $user->firstName = filter_var($_PUT['firstName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$user->firstName || !$user->isValidFirstName())
+            $errors[] = "Prénom trop long.";    
+        $user->mobile = filter_var($_PUT['mobile'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$user->mobile || !$user->isValidMobile())
+            $errors[] = "Numéro de téléphone erroné.";    
+        $user->postMail = filter_var($_PUT['postMail'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$user->postMail || !$user->isValidPostMail())
+            $errors[] = "Adresse incorrecte.";
+        $user->postMailComplement = filter_var($_PUT['postMailComplement'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if($user->postMailComplement && !$user->isValidPostMailComplement())
+            $errors[] = "Complément d'adresse invalide.";
+        $user->zipCode = filter_var($_PUT['zipCode'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$user->zipCode || !$user->isValidZipCode())
+            $errors[] = "Code postal invalide.";
+        $user->city = filter_var($_PUT['city'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$user->city || !$user->isValidCity())
+            $errors[] = "Commune ou ville incorrecte.";
+        // Remplir la réponse.
+		$results['user'] = $user;
+		$results['errors'] = $errors;
+		return $results;
+    }
+    /**
+     * Met à jour une commande 'cart' validée.
+     *
+     * @param Command $command
+     * @return void
+     */
+    private static function updateCartCommand(Command $command) : void {
+        // Récupérer et traiter les information du user reçues en PUT.
+        $processing = CommandController::processingUserOnCommand($command);
+        $user = $processing['user'];
+        $errors = $processing['errors'];
+        // Si aucune erreur, tenter de persister le user en tenant compte de l'email (unique)
+        if(!$errors){
+            try {
+                $user->persist();
+            } catch (Exception) {
+                $errors[] = "Un utilisateur existe déjà avec cet email, veuillez vous connecter";
+            }
+        }
+        // Récupérer le token si existant et l'inclure dans la réponse.
+        $results['jwt_token'] = JWT::isValidJWT();
+        // Si toujours aucune erreur, mettre à jour la commande.
+        if(!$errors){
+            $command->idCustomer = $user->idUser;
+            $command->status = 'open';
+            $command->orderDate = date('Y-m-d H:i:s');
+            $command->lastChange = $command->orderDate;
+            $command->ref = date('YmdHis') . $command->idCustomer;
+            
+            // Tenter de persister en tenant compte des éventuels doublon de ref.
+            try {
+                $command->persist();
+            } catch (Error) {
+                $errors[] = "Doublon de référence.";
+            } 
+        }
+        $command->getLines();
+        $success = !$errors;
+        if($success)
+            $message = "Merci de votre confiance. Votre commande a bien été validée.";
+        else
+            $message = "La commande n'a pas pu être validée.";
+        $results['errors'] = $errors;
+        $results['customer'] = $user;
+        $results['command'] = $command;
+        Router::responseJson($success, $message, $results);
     }
 }
