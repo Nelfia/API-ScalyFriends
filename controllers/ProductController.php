@@ -144,7 +144,7 @@ final class ProductController {
                 $errors[] = ProductControllerException::INVALID_SPECIFICATION_UNIT;
         // Générer une référence unique.
         $catRef = strtoupper(substr($product->category, 0, 4));
-        $dateRef = date('Ymdhms');
+        $dateRef = date('Ymdhis');
         $nbRef = substr((string)Product::getCount(),-3);
         $product->ref = $catRef . $dateRef . $nbRef;
         // Récupérer l'idUser du créateur du produit.

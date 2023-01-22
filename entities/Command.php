@@ -97,8 +97,7 @@ class Command extends Entity  {
             $this->customer = User::findOneBy(['idUser' => $this->idCustomer], []);
         }
         return $this->customer;
-    }
-    
+    }  
     /**
      * Retourne l'instance de l'agent en lazy loading.
      *

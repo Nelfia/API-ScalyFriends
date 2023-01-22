@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace cfg;
 
-use NumberFormatter;
 use peps\core\Cfg;
-use peps\session\SessionMode;
 
 /**
  * Classe 100% statique de configuration générale de l'application.

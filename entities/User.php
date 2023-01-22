@@ -250,7 +250,7 @@ class User extends Entity implements LoggableUser {
      */
     public function getCart(): ?Command {
         if ($this->cart === null) {
-            $this->cart = Command::findOneBy(['idCustomer' => $this->idUser,'status' => "panier"], []);
+            $this->cart = Command::findOneBy(['idCustomer' => $this->idUser,'status' => "cart"], []);
         }
         return $this->cart;
     }
@@ -265,5 +265,90 @@ class User extends Entity implements LoggableUser {
             $this->cartLines = Line::findAllBy(['idCommand' => $idCommand ], []);
         }
         return $this->cartLines;
+    }
+    /**
+     * Retire les propriétés pwd et role du User pour ne pas transmettre ces données au client.
+     *
+     * @return User
+     */
+    public function secureReturnedUser() : User {
+        unset($this->pwd);
+        unset($this->roles);
+        return $this;
+    }
+    /**
+     * Vérifie si le nom d'utilisateur est valide.
+     *
+     * @return bool TRUE si valide, sinon FALSE.
+     */
+    public function isValidUsername() : bool {
+        return mb_strlen($this->username) < 255 && mb_strlen($this->username) > 3;
+    }
+    /**
+     * Vérifie si l'adresse mail du user est valide.
+     *
+     * @return bool TRUE si valide, sinon FALSE.
+     */
+    public function isValidEmail() : bool {
+        $this->email = filter_var($this->email, FILTER_VALIDATE_EMAIL) ?: null;
+        return ($this->email && mb_strlen($this->email) < 255 && mb_strlen($this->email) > 0);
+    }
+    /**
+     * Vérifie si le nom de famille du user est valide.
+     *
+     * @return bool TRUE si valide, sinon FALSE.
+     */
+    public function isValidLastName() : bool {
+        return (mb_strlen($this->lastName) < 255 && mb_strlen($this->lastName) > 2);
+    }
+    /**
+     * Vérifie si le prénom du user est valide.
+     *
+     * @return bool TRUE si valide, sinon FALSE.
+     */
+    public function isValidFirstName() : bool {
+        return (mb_strlen($this->firstName) < 200 && mb_strlen($this->firstName) > 2);
+    }
+    /**
+     * Nettoie et vérifie si le numéro de téléphone du user est valide.
+     *
+     * @return bool TRUE si numéro de téléphone valide, 
+     * sinon FALSE.
+     */
+    public function isValidMobile() : bool {
+        $this->mobile = preg_replace('`[^0-9]`', '', $this->mobile);
+        return (bool)preg_match('`^0[1-9]([0-9]{2}){4}$`', $this->mobile);
+    }
+    /**
+     * Vérifie si une adresse est valide.
+     *
+     * @return bool TRUE si valide, sinon FALSE.
+     */
+    public function isValidPostMail() : bool {
+        return (mb_strlen($this->postMail) < 255 && mb_strlen($this->postMail) > 6);
+    }
+    /**
+     * Vérifie si le complément d'adresse est valide.
+     *
+     * @return bool TRUE si valide, sinon FALSE.
+     */
+    public function isValidPostMailComplement() : bool {
+        return (mb_strlen($this->postMailComplement) < 255 && mb_strlen($this->postMailComplement) > 2);
+    }
+    /**
+     * Vérifie si le code postal du user est valide.
+     *
+     * @return bool TRUE si valide, sinon FALSE.
+     */
+    public function isValidZipCode() : bool {
+        return (bool)preg_match('`^[0-9]{4}0$`', $this->zipCode);
+    }
+    /**
+     * Vérifie si la Ville/Commune est valide.
+     *
+     * @return bool TRUE si valide, sinon FALSE.
+     */
+    public function isValidCity() : bool {
+        return mb_strlen($this->postMailComplement) < 255;
     }
 }

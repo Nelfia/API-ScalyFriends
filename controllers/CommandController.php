@@ -10,6 +10,7 @@ use peps\core\Router;
 use peps\jwt\JWT;
 use entities\Product;
 use entities\User;
+use Error;
 use Exception;
 
 /**
@@ -87,6 +88,8 @@ final class CommandController {
     }
     /**
      * Contrôle les données reçues en POST & créé une nouvelle commande en DB.
+     * Toute nouvelle commande commence au status de panier.
+     * Un même user ne DEVRAIT avoir qu'un seul panier.
      *
      * POST /api/orders
      * Accès: PUBLIC.
@@ -94,203 +97,148 @@ final class CommandController {
      * @return void
      */
     public static function create() : void {
-        // Vérifier si token et si valide.
-        $token = JWT::isValidJWT();
-        if(!$token) 
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
-        // Vérifier les droits d'accès du user.
-        $user = User::getLoggedUser();
-        if(!$user->isGranted("ROLE_ADMIN"))
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
         // Initialiser le tableau des résultats.
         $results = [];
-        // Ajouter le token.
-        $results['jwt_token'] = $token;
-        // Créer un produit.
-        $product = new Product();
-        // Initialiser le tableau des erreurs
-        $errors = [];
-        // Récupérer et valider les données
-        $product->category = filter_input(INPUT_POST, 'category', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->category || mb_strlen($product->category) > 50)
-            $errors[] = ProductControllerException::INVALID_CATEGORY;
-        $product->type = filter_input(INPUT_POST, 'type', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->type || mb_strlen($product->type) > 100)
-            $errors[] = ProductControllerException::INVALID_TYPE;
-        $product->name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->name || mb_strlen($product->name) > 255)
-            $errors[] = ProductControllerException::INVALID_NAME;
-        $product->description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->description)
-            $errors[] = ProductControllerException::INVALID_DESCRIPTION;
-        $product->price = filter_input(INPUT_POST, 'price', FILTER_VALIDATE_FLOAT) ?: null;
-        if(!$product->price || $product->price <= 0 || $product->price > 10000)
-            $errors[] = ProductControllerException::INVALID_PRICE;
-        $product->stock = filter_input(INPUT_POST, 'stock', FILTER_VALIDATE_INT) ?: null;
-        if(!$product->stock || $product->stock < 0)
-            $errors[] = ProductControllerException::INVALID_STOCK;
-        $product->gender = filter_input(INPUT_POST, 'gender', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->gender) {
-            if($product->gender !== "f" || $product->gender !== "m" || mb_strlen($product->gender) > 1)
-                $errors[] = ProductControllerException::INVALID_GENDER;
-        }
-        $product->species = filter_input(INPUT_POST, 'species', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->species || mb_strlen($product->species) > 200)
-            $errors[] = ProductControllerException::INVALID_SPECIES; 
-        $product->race = filter_input(INPUT_POST, 'race', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->race && mb_strlen($product->race) > 200)
-                $errors[] = ProductControllerException::INVALID_RACE;
-        $product->birth = filter_input(INPUT_POST, 'birth', FILTER_VALIDATE_INT) ?: null;
-        if($product->birth){
-            if ($product->birth < 2010|| $product->birth > date('Y'))
-                $errors[] = ProductControllerException::INVALID_BIRTH;
-        }
-        $product->requiresCertification = filter_input(INPUT_POST, 'requiresCertification', FILTER_VALIDATE_BOOL) !== null ?: null;
-        if($product->requiresCertification === null)
-            $errors[] = ProductControllerException::INVALID_REQUIRES_CERTIFICATION;
-        $product->dimensionsMax = filter_input(INPUT_POST, 'dimensionsMax', FILTER_VALIDATE_FLOAT) ?: null;
-        if(!$product->dimensionsMax || $product->dimensionsMax <= 0 || $product->dimensionsMax > 10000)
-            $errors[] = ProductControllerException::INVALID_DIMENSION;
-        $product->dimensionsUnit = filter_input(INPUT_POST, 'dimensionsUnit', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->dimensionsUnit || mb_strlen($product->dimensionsUnit) > 10)
-            $errors[] = ProductControllerException::INVALID_DIMENSION_UNIT;
-        $product->specification = filter_input(INPUT_POST, 'specification', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->specification || mb_strlen($product->specification) > 50)
-            $errors[] = ProductControllerException::INVALID_SPECIFICATION;
-        $product->specificationValue = filter_input(INPUT_POST, 'specificationValue', FILTER_VALIDATE_FLOAT) ?: null;
-        if($product->specificationValue && $product->specificationValue <= 0 )
-            $errors[] = ProductControllerException::INVALID_SPECIFICATION_VALUE;
-        $product->specificationUnit = filter_input(INPUT_POST, 'specificationUnit', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if(!$product->specificationUnit || mb_strlen($product->specificationUnit) > 3)
-                $errors[] = ProductControllerException::INVALID_SPECIFICATION_UNIT;
-        // Générer une référence unique.
-        $catRef = strtoupper(substr($product->category, 0, 4));
-        $dateRef = date('Ymdhms');
-        $nbRef = substr((string)Product::getCount(),-3);
-        $product->ref = $catRef . $dateRef . $nbRef;
-        // Récupérer l'idUser du créateur du produit.
-        $payload = JWT::getPayload($token);
-        $product->idAuthor = $payload['user_id'];
-        // Faire apparaître le produit.
-        $product->isVisible = true;
-        // Si aucune erreur, persister le produit.
-        if(!$errors) {
-            // Tenter de persister en tenant compte du potentiel doublon de référence.
-            try {
-                $product->persist();
-            } catch (Exception) {
-                $errors[] = "La référence existe déjà.";
+        // Créer une nouvelle commande.
+        $command = new Command();
+        // Créer une nouvelle commande.
+        $command->status = 'cart';
+        // Vérifier si user connecté.
+        $user = User::getLoggedUser();
+        // Si user connecté.
+        if($user){
+            // Récupérer son token et l'insérer dans la réponse.
+            $token = JWT::isValidJWT();
+            $results['jwt_token'] = $token;
+            // Vérifier que le user n'a pas déjà un panier (max. 1 par user)
+            if($user->getCart()) {
+                $results['cart'] = $user->getCart();
+                Router::responseJson(false, "Création impossible, l'utilisateur a déjà un panier.", $results);
             }
-            // Si toujours pas d'erreur.
-            if(!$errors) {
-            // Remplir la réponse à envoyer au client.
-            $success = true;
-            $message = "Produit créé avec succès";
-            $results['product'] = $product;
-            }
-        } else {
-            // Remplir la réponse à envoyer au client.
-            $success = false;
-            $message = "Impossible de créer produit !";
-            $results['errors'] = $errors;            
-            $results['product'] = $product;            
+            // Récupérer son id et l'insérer dans la commande.
+            $command->idCustomer = $user->idUser;
         }
-
+        // Ajouter la date de dernier changement.
+        $command->lastChange = date('Y-m-d H:i:s');
+        // Persister la commande en BD.
+        $command->persist();
+        $results['cart'] = $command;
         // Envoyer la réponse au client.
-        Router::responseJson($success, $message, $results);
+        Router::responseJson(true, "Le panier a bien été créé.", $results);
     }
     /**
      * Modifie le status d'une commande existante.
      *
      * PUT /api/orders/{id}
-     * Accès: ADMIN.
+     * Accès: PUBLIC => Passage de panier à commande à traiter
+     *  & création du user en DB (ROLE_PUBLIC).
+     * Accès: ADMIN => Changements de status de la commande.
      * 
      * @param array $assocParams Tableau associatif des paramètres.
      * @return void
      */
     public static function update(array $assocParams) : void {
-        // Vérifier si token et si valide.
-        $token = JWT::isValidJWT();
-        if(!$token) 
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
-        // Vérifier les droits d'accès du user.
-        $user = User::getLoggedUser();
-        if(!$user->isGranted("ROLE_ADMIN"))
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
-        // Initialiser le tableau des résultats.
-        $results = [];
-        // Ajouter le token.
-        $results['jwt_token'] = $token;
-        // Récupérer l'id du produit passé en paramètre.
-        $idProduct = (int)$assocParams['id'];
-        // Récupérer le produit.
-        $product = Product::findOneBy(['idProduct' => $idProduct ]);
-        // Initialiser le tableau des erreurs
-        $errors = [];
-        // Récupérer le tableau des données reçues en PUT et les mettre dans la Super Globale $_PUT.
+        // Récupérer l'id de la commande.
+        $idCommand = (int)$assocParams['id'] ?? null;
+        // Récupérer la commande.
+        $command = Command::findOneBy(['idCommand' => $idCommand]);
+        // Récupérer les données reçues en PUT et les mettre dans la "Super Globale" $_PUT.
 		parse_str(file_get_contents("php://input"),$_PUT);
-        // Récupérer et valider les données
-        $product->category = filter_var($_PUT['category'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->category && (mb_strlen($product->category) > 50 || mb_strlen($product->category) < 6))
-            $errors[] = ProductControllerException::INVALID_CATEGORY;
-        $product->type = filter_var($_PUT['type'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->type && (mb_strlen($product->type) > 100 || mb_strlen($product->type) < 4))
-            $errors[] = ProductControllerException::INVALID_TYPE;
-        $product->name = filter_var($_PUT['name'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->name && (mb_strlen($product->name) > 255 || mb_strlen($product->name) < 3))
-            $errors[] = ProductControllerException::INVALID_NAME;
-        $product->description = filter_var($_PUT['description'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->description && mb_strlen($product->description) < 10)
-            $errors[] = ProductControllerException::INVALID_DESCRIPTION;
-        $product->price = filter_var($_PUT['price'], FILTER_VALIDATE_FLOAT) ?: null;
-        if($product->price && ($product->price <= 0 || $product->price > 10000))
-            $errors[] = ProductControllerException::INVALID_PRICE;
-        $product->stock = filter_var($_PUT['stock'], FILTER_VALIDATE_INT) ?: null;
-        if($product->stock && $product->stock < 0)
-            $errors[] = ProductControllerException::INVALID_STOCK;
-        $product->gender = filter_var($_PUT['gender'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->gender && ($product->gender !== "f" || $product->gender !== "m" || mb_strlen($product->gender) > 1)) 
-                $errors[] = ProductControllerException::INVALID_GENDER;
-        $product->species = filter_var($_PUT['species'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->species && (mb_strlen($product->species) > 200 || mb_strlen($product->species) < 3))
-            $errors[] = ProductControllerException::INVALID_SPECIES; 
-        $product->race = filter_var($_PUT['race'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->race && (mb_strlen($product->race) > 200))
-                $errors[] = ProductControllerException::INVALID_RACE;
-        $product->birth = filter_var($_PUT['birth'], FILTER_VALIDATE_INT) ?: null;
-        if($product->birth && ($product->birth < 2010|| $product->birth > date('Y')))
-                $errors[] = ProductControllerException::INVALID_BIRTH;
-        $product->requiresCertification = filter_var($_PUT['requiresCertification'], FILTER_VALIDATE_BOOL) !== null ?: null;
-        if($product->requiresCertification === null)
-            $errors[] = ProductControllerException::INVALID_REQUIRES_CERTIFICATION;
-        $product->dimensionsMax = filter_var($_PUT['dimensionsMax'], FILTER_VALIDATE_FLOAT) ?: null;
-        if($product->dimensionsMax && ($product->dimensionsMax <= 0 || $product->dimensionsMax > 10000))
-            $errors[] = ProductControllerException::INVALID_DIMENSION;
-        $product->dimensionsUnit = filter_var($_PUT['dimensionsUnit'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->dimensionsUnit && mb_strlen($product->dimensionsUnit) > 10)
-            $errors[] = ProductControllerException::INVALID_DIMENSION_UNIT;
-        $product->specification = filter_var($_PUT['specification'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->specification && mb_strlen($product->specification) > 50)
-            $errors[] = ProductControllerException::INVALID_SPECIFICATION;
-        $product->specificationValue = filter_var($_PUT['specificationValue'], FILTER_VALIDATE_FLOAT) ?: null;
-        if($product->specificationValue && $product->specificationValue <= 0 )
-            $errors[] = ProductControllerException::INVALID_SPECIFICATION_VALUE;
-        $product->specificationUnit = filter_var($_PUT['specificationUnit'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if($product->specificationUnit && mb_strlen($product->specificationUnit) > 3)
-                $errors[] = ProductControllerException::INVALID_SPECIFICATION_UNIT;
-        // Si aucune erreur, persister le produit.
-        if(!$errors) {
-            $product->persist();
-            // Remplir la réponse à envoyer au client.
-            $success = true;
-            $message = "Produit a bien été mis à jour";
-            $results['product'] = $product;
-        } else {
-            // Remplir la réponse à envoyer au client.
-            $success = false;
-            $message = "Impossible de modifier le produit !";
-            $results['errors'] = $errors;            
-            $results['product'] = $product;            
+        // Initialiser le tableau des erreurs.
+        $errors = [];
+        // Initialiser le tableau de la réponse.
+        $results = [];
+        // Si pas de commande, envoyer réponse au client.
+        if(!$command)
+            Router::responseJson(false, "Aucune commande trouvée.");
+        // Récupérer 
+        $user = User::getLoggedUser();
+        // Si status commande = 'cart'
+        if($command->status === 'cart') {
+            // Si user non inscrit (ROLE_PUBLIC), le créer.
+            if(!$user){
+                $user = new User();
+                $user->roles = json_encode(["ROLE_PUBLIC"]);
+            }
+            // Récupérer et valider les données.
+            $user->email = filter_var($_PUT['email'], FILTER_SANITIZE_EMAIL) ?: null;
+            $user->email = filter_var($user->email, FILTER_VALIDATE_EMAIL) ?: null;
+            if(!$user->email || mb_strlen($user->email) > 50)
+                $errors[] = 'Email invalide';
+
+            $user->lastName = filter_var($_PUT['lastName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+            if(!$user->lastName || mb_strlen($user->lastName) > 255 || mb_strlen($user->lastName) < 2)
+                $errors[] = "Nom de famille invalide.";
+    
+            $user->firstName = filter_var($_PUT['firstName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+            if(!$user->firstName || mb_strlen($user->firstName) > 200 || mb_strlen($user->firstName) < 2)
+                $errors[] = "Prénom trop long.";
+            
+            $user->mobile = filter_var($_PUT['mobile'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+            if($user->mobile) {
+                // Enlever tous les caractères non numériques.
+                $user->mobile = preg_replace('`[^0-9]`', '', $user->mobile);
+                $isValidMobile = (bool)preg_match('`^0[1-9]([0-9]{2}){4}$`', $user->mobile);
+            }
+            if(!$user->mobile || !$isValidMobile) {
+                $errors[] = "Numéro de téléphone erroné.";
+            }
+    
+            $user->postMail = filter_var($_PUT['postMail'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+            if(!$user->postMail || mb_strlen($user->postMail) > 255 || mb_strlen($user->postMail) < 6 ){
+                $errors[] = "Adresse incorrecte.";
+            }
+    
+            $user->postMailComplement = filter_var($_PUT['postMailComplement'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+            if($user->postMailComplement) {
+                if(mb_strlen($user->postMailComplement) > 255)
+                    $errors[] = "Complément d'adresse trop long.";
+            }
+            
+            $user->zipCode = filter_var($_PUT['zipCode'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+            if($user->zipCode)
+                $isValidZipCode = preg_match('`^[0-9]{4}0$`', $user->zipCode);
+            if(!$user->zipCode || !$isValidZipCode) 
+                $errors[] = "Code postal invalide.";
+    
+            $user->city = filter_var($_PUT['city'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+            if(!$user->city || mb_strlen($user->city) > 255)
+                $errors[] = "Commune ou ville incorrecte.";
+        }
+        // Si aucune erreur, tenter de persister le user en tenant compte de l'email (unique)
+        if(!$errors){
+            try {
+                $user->persist();
+            } catch (Error) {
+                $errors[] = "Un utilisateur existe déjà avec cet email, veuillez vous connecter";
+            }
+        }
+        // Récupérer le token si existant et l'inclure dans la réponse avec le user.
+        $token = JWT::isValidJWT();
+        $results['jwt_token'] = $token;
+        $results['customer'] = $user;
+        // Si toujours aucune erreur, mettre à jour la commande.
+        if(!$errors){
+            $command->idCustomer = $user->idUser;
+            $command->status = 'open';
+            $command->orderDate = date('Y-m-d H:i:s');
+            $command->lastChange = $command->orderDate;
+            $command->ref = date('YmdHis') . $command->idCustomer;
+            // Tenter de persister en tenant compte des éventuels doublon de ref.
+            try {
+                $command->persist();
+            } catch (Exception) {
+                $errors[] = "Doublon de référence.";
+            } 
+        }
+        $success = !$errors;
+        $command->getLines();
+        $results['order'] = $command;
+        if($success)
+            $message = "Merci de votre confiance. Votre commande a bien été validée.";
+        else{
+            $message = "La commande n'a pas pu être validée.";
+            $results['errors'] = $errors;
         }
         // Envoyer la réponse au client.
         Router::responseJson($success, $message, $results);
@@ -318,6 +266,7 @@ final class CommandController {
         $now = new DateTime();
         $nb = 0;
         foreach($commands as $command) {
+            // Si le ^panier n'est pas rattachée à un user.
             if(!$command->idCustomer){
                 $lastChange = new DateTime($command->lastChange);
                 $interval = date_diff($lastChange, $now);
