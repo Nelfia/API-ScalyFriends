@@ -13,13 +13,13 @@ use peps\core\Entity;
  * 
  * @see Entity
  */
-class Order extends Entity  {
+class Command extends Entity  {
     /**
      * PK.
      *
      * @var integer|null
      */
-    public ?int $idOrder = null;
+    public ?int $idCommand = null;
     /**
      * FK du client.
      *
@@ -71,6 +71,12 @@ class Order extends Entity  {
      * @var User|null
      */
     protected ?User $agent = null;
+    /**
+     * Lignes de la commande.
+     *
+     * @var array|null
+     */
+    protected ?array $lines = null;
 
     /**
      * Constructeur.
@@ -96,12 +102,23 @@ class Order extends Entity  {
     /**
      * Retourne l'instance de l'agent en lazy loading.
      *
-     * @return User Instance de l'agent.
+     * @return User|null Instance de l'agent ou null si non trouvé.
      */
     public function getAgent(): ?User {
         if ($this->agent === null) {
             $this->agent = User::findOneBy(['idUser' => $this->idAgent], []);
         }
         return $this->agent;
+    }
+    /**
+     * Retourne le tableau des lignes de la commande en lazy loading.
+     *
+     * @return array|null Tableau des lignes de la commande ou null si non trouvées.
+     */
+    public function getLines(): ?array {
+        if ($this->lines === []) {
+            $this->lines = Line::findAllBy(['idCommand' => $this->idOrder], []);
+        }
+        return $this->lines;
     }
 }

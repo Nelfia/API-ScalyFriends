@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace controllers;
 
+use DateTime;
+use entities\Command;
 use peps\core\Router;
 use peps\jwt\JWT;
 use entities\Product;
@@ -11,64 +13,83 @@ use entities\User;
 use Exception;
 
 /**
- * Classe 100% statique de gestion des produits.
+ * Classe 100% statique de gestion des commandes.
  */
-final class ProductController {
+final class CommandController {
     /**
      * Constructeur privé
      */
     private function __construct() {}
 
     /**
-     * Envoie liste de tous les produits.
+     * Envoie la liste de toutes les commandes (ou filtrées par status).
      * 
-     * GET /api/products
-     * Accès: PUBLIC.
+     * GET /api/orders
+     * GET /api/orders/(cart|open|pending|closed|cancelled)
+     * Accès: ROLE_USER => Reçoit la liste de ses commandes uniquement.
+     * Accès: ROLE_ADMIN => Reçoit la liste de toutes les commandes.
      *
+     * @param array $assocParams Tableau associatif des paramètres.
      * @return void
      */
-    public static function list() : void {
-        // Récupérer tous les produits non archivés dans l'ordre alphabétique.
-        $products = Product::findAllBy([ "isVisible" => true ], ['name' => 'ASC']);
-        if($products){
+    public static function list(array $assocParams = null) : void {
+        // Vérifier si User logué.
+        $user = User::getLoggedUser();
+        if(!$user) 
+        Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
+        $status = $assocParams['status']?? null;
+        // exit(json_encode($status));
+        // Récupérer toutes les commandes en fonction du user logué et du status demandé.
+        $orders = $user->getCommands($status)?:null;
+        // Initialiser le tableau des résultats.
+        $results = [];
+        if($orders){
             $success = true;
-            $message = "Voici la liste de tous les produits";
-            $results['nb'] = count($products);
-            $results['products'] = $products;
+            $message = "Voici la liste de toutes les commandes";
+            $results['nb'] = count($orders);
+            $results['status'] = $status?: "all";
+            $results['orders'] = $orders;
         } else {
             $success = false;
-            $message = "Aucun produit trouvé !";
+            $message = "Aucune commande trouvée .";
         }
         // Renvoyer la réponse au client.
         Router::responseJson($success, $message, $results);
     }
     /**
-     * Affiche le détail d'un produit.
+     * Affiche le détail d'une commande.
      * 
-     * GET /api/products/{id}
-     * Accès: PUBLIC.
+     * GET /api/orders/{id}
+     * Accès: ROLE_USER | ROLE_ADMIN.
      *
      * @param array $assocParams Tableau associatif des paramètres.
      * @return void
      */
     public static function show(array $assocParams) : void {
-        // Récupérer l'id du produit passé en paramètre.
-        $idProduct = (int)$assocParams['id'];
-        // Récupérer le produit s'il est visible.
-        $product = Product::findOneBy(['idProduct' => $idProduct, "isVisible" => true ]);
-        // Si aucun produit trouvé, retourner l'erreur au client.
-        if(!$product)
-            Router::responseJson(false, "Aucun produit trouvé.", []);
+        // Vérifier si user logué.
+        $user = User::getLoggedUser();
+        if(!$user)
+            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
+        // Récupérer l'id de la commande passé en paramètre.
+        $idCommand = (int)$assocParams['id'];
+        // Récupérer la commande.
+        $command = Command::findOneBy(['idCommand' => $idCommand]);
+        $command?->getLines();
         $results = [];
-        $results['product'] = $product;
+        $results['jwt_token'] = JWT::isValidJWT();
+        // Si l'utilisateur est admin.
+        if(($user->isGranted('ROLE_USER') && $command?->idCustomer === $user->idUser) || $user->isGranted('ROLE_ADMIN')) {
+            $results['command'] = $command;
+            Router::responseJson(true, "Voici la commande.", $results);
+        }
         // Envoyer la réponse en json.
-        Router::responseJson(true, "Produit récupéré .", $results);
+        Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.", $results);
     }
     /**
-     * Contrôle les données reçues & insère un nouveau produit en DB.
+     * Contrôle les données reçues en POST & créé une nouvelle commande en DB.
      *
-     * POST /api/products
-     * Accès: ADMIN.
+     * POST /api/orders
+     * Accès: PUBLIC.
      * 
      * @return void
      */
@@ -179,9 +200,9 @@ final class ProductController {
         Router::responseJson($success, $message, $results);
     }
     /**
-     * Modifie les données d'un produit existant.
+     * Modifie le status d'une commande existante.
      *
-     * PUT /api/users/{id}
+     * PUT /api/orders/{id}
      * Accès: ADMIN.
      * 
      * @param array $assocParams Tableau associatif des paramètres.
@@ -275,16 +296,16 @@ final class ProductController {
         Router::responseJson($success, $message, $results);
     }
     /**
-     * "Supprime" un produit.
-     * Passe 'isVisible' à false.
+     * Supprime une commande status "cart"
+     * n'ayant pas d'idCustomer -> PUBLIC non USER
+     * et dont lastChange + $timeout < maintenant.
      *
-     * DELETE /products/{id}
+     * DELETE /orders
      * Accès: ADMIN.
      * 
-     * @param array $assocParams Tableau des paramètres.
      * @return void
      */
-    public static function delete(array $assocParams) : void {
+    public static function delete() : void {
         // Vérifier si User logué.
         $user = User::getLoggedUser();
         if(!$user) 
@@ -292,11 +313,24 @@ final class ProductController {
         // Vérifier si a les droits d'accès.
         if(!$user->isGranted("ROLE_ADMIN"))
             Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
-        $product = Product::findOneBy(['idProduct' => (int)$assocParams['id']]);
-        $product->isVisible = false;
-        $product->persist();
+        // Récupérer UNIQUEMENT les commandes dont le status est panier.
+        $commands = Command::findAllBy(['status' => 'cart'], []);
+        $now = new DateTime();
+        $nb = 0;
+        foreach($commands as $command) {
+            if(!$command->idCustomer){
+                $lastChange = new DateTime($command->lastChange);
+                $interval = date_diff($lastChange, $now);
+                $interval = $interval->format('%a'); // exprimée en jour entier (string)
+                if((int)$interval > 2 ){
+                    $command->remove();
+                    $nb++;
+                }
+            }
+        }
         $results = [];
+        $results['nb'] = $nb;
         $results['jwt_token'] = JWT::isValidJWT();
-        Router::responseJson(true, "Le produit a été supprimé.", $results);
+        Router::responseJson(true, "Les paniers obsolètes ont bien été supprimés.", $results);
     }
 }

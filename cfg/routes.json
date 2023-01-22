@@ -43,13 +43,21 @@
     },
     {
         "verb" : "GET",
+        "uri" : "/api/orders/(cart|open|pending|closed|cancelled)",
+        "method" : "CommandController.list",
+        "params" : [
+            "status"
+        ]
+    },
+    {
+        "verb" : "GET",
         "uri" : "/api/orders",
-        "method" : "OrderController.list"
+        "method" : "CommandController.list"
     },
     {
         "verb" : "GET",
         "uri" : "/api/orders/([1-9][0-9]*)",
-        "method" : "OrderController.show",
+        "method" : "CommandController.show",
         "params" : [
             "id"
         ]
@@ -57,23 +65,20 @@
     {
         "verb" : "POST",
         "uri" : "/api/orders",
-        "method" : "OrderController.create"
+        "method" : "CommandController.create"
     },
     {
         "verb" : "PUT",
         "uri" : "/api/orders/([1-9][0-9]*)",
-        "method" : "OrderController.update",
+        "method" : "CommandController.update",
         "params" : [
             "id"
         ]
     },
     {
         "verb" : "DELETE",
-        "uri" : "/api/orders/([1-9][0-9]*)",
-        "method" : "OrderController.delete",
-        "params" : [
-            "id"
-        ]
+        "uri" : "/api/orders",
+        "method" : "CommandController.delete"
     },
     {
         "verb" : "GET",

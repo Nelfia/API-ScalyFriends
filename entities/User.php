@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace entities;
 
 use peps\core\Entity;
+use peps\core\Router;
 use peps\jwt\JWT;
 use peps\jwt\LoggableUser;
 
@@ -95,7 +96,7 @@ class User extends Entity implements LoggableUser {
      *
      * @var array|null
      */
-    protected ?array $orders = [];
+    protected ?array $commands = [];
     /**
      * Tableau des favoris du user.
      * Chargement en lazy loading.
@@ -111,21 +112,20 @@ class User extends Entity implements LoggableUser {
      */
     protected ?array $products = [];
     /**
-     * Identifiant de la commande avec le status "panier".
-     * (Commande avec le status "panier").
-     * Chargement en lazy loading.
-     *
-     * @var Commande|null
-     */
-    protected ?int $idCart = null;
-    /**
      * Panier du user.
      * (Lignes de la commande avec le status "panier").
      * Chargement en lazy loading.
      *
      * @var array|null
      */
-    protected ?array $cart = [];
+    protected ?Command $cart = null;
+    /**
+     * Lignes de produits insérées dans le panier.
+     *
+     * @var array|null
+     */
+    protected ?array $cartLines = [];
+    
 
     /**
      * Instance du User logué.
@@ -165,14 +165,13 @@ class User extends Entity implements LoggableUser {
         // Sinon retourner false.
         return false;             
     }
-
     /**
      * Retourne le user logué ou null si absent.
      * Lazy loading.
      *
-     * @return self|null User logué ou null si token invalide.
+     * @return User|null User logué ou null si token invalide.
      */
-    public static function getLoggedUser() : ?self {
+    public static function getLoggedUser() : ?User {
         // Vérifier la présence et la validité d'un token.
         $token = JWT::isValidJWT();
         // Si $loggedUser non renseigné mais token valide, récupérer la varibale contenant user_id, créer le user, l'hydrater et le stocker.
@@ -184,7 +183,6 @@ class User extends Entity implements LoggableUser {
         // Sinon, si $loggedUser renseigné, le retourner.
         return self::$loggedUser ?: null;
     }
-
     /**
      * Vérifie les droits d'accès du user logué.
      *
@@ -203,18 +201,26 @@ class User extends Entity implements LoggableUser {
     }
 
     /**
-     * Retourne le tableau des commandes du user en lazy loading.
+     * Retourne les commandes du user.
      *
-     * @return array Tableau des commandes du user.
+     * @return ?array Tableau des commandes du user| NULL si aucune commande trouvée.
      */
-    public function getOrders(): array {
-        if ($this->orders === []) {
-            if(json_decode($this->role) === "ROLE_ADMIN")
-                $this->orders = Order::findAllBy(['idAgent' => $this->idUser], []);
+    public function getCommands(string $status = null): ?array {
+        if($this->isGranted("ROLE_ADMIN")) {
+            // Si aucun status passé en paramètre, retourne TOUTES les commandes.
+            if($status === null)
+                return $this->commands = Command::findAllBy([], ['orderDate' => 'DESC'])?:[];
             else
-                $this->orders = Order::findAllBy(['idClient' => $this->idUser], []);
+                return $this->commands = Command::findAllBy(['status' => $status ], ['orderDate' => 'DESC'])?:[];
         }
-        return $this->orders;
+        if($this->isGranted("ROLE_USER")){
+            // Si aucun status passé en paramètre, retourne TOUTES les commandes.
+            if(!$status)
+                return $this->commands = Command::findAllBy(['idCustomer' => $this->idUser], ['orderDate' => 'DESC']);
+            else
+                return $this->commands = Command::findAllBy(['idCustomer' => $this->idUser, 'status' => 'DESC'], ['orderDate' => 'DESC']);
+        }
+        return null;
     }
     /**
      * Retourne le tableau des favoris du user en lazy loading.
@@ -233,22 +239,20 @@ class User extends Entity implements LoggableUser {
      * @return array Tableau des produits créés.
      */
     public function getProducts(): array {
-        if ($this->products === []) {
-            $this->products = Favorite::findAllBy(['idUser' => $this->idUser], []);
-        }
+        if ($this->products === [])
+            $this->products = Product::findAllBy(['idAuthor' => $this->idUser], []);
         return $this->products;
     }
     /**
-     * Retourne l'idOrder du panier du user en lazy loading.
+     * Retourne le panier du user en lazy loading.
      *
-     * @return int|null Identifiant de la commande avec status "cart" du user.
+     * @return Command|null Commande avec status "cart" du user.
      */
-    public function getIdCart(): ?int {
-        if ($this->idCart === null) {
-            $cart = Order::findOneBy(['idClient' => $this->idUser,'status' => "panier"], []);
-            $this->idCart = $cart->idOrder;
+    public function getCart(): ?Command {
+        if ($this->cart === null) {
+            $this->cart = Command::findOneBy(['idCustomer' => $this->idUser,'status' => "panier"], []);
         }
-        return $this->idCart;
+        return $this->cart;
     }
     /**
      * Retourne les lignes du panier du user en lazy loading.
@@ -256,9 +260,10 @@ class User extends Entity implements LoggableUser {
      * @return array Tableau des produits créés.
      */
     public function getCartLines(): array {
-        if ($this->cart === []) {
-            $this->cart = Line::findAllBy(['idCommande' => $this->idCart], []);
+        if ($this->cartLines === []) {
+            $idCommand = $this->cart?->idCommand;
+            $this->cartLines = Line::findAllBy(['idCommand' => $idCommand ], []);
         }
-        return $this->cart;
+        return $this->cartLines;
     }
 }
