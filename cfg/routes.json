@@ -193,26 +193,16 @@
         ]
     },
     {
-        "verb" : "GET",
+        "verb" : "POST",
         "uri" : "/api/orders/([1-9][0-9]*)/lines",
-        "method" : "LineController.list"
-    },
-    {
-        "verb" : "GET",
-        "uri" : "/api/orders/([1-9][0-9]*)/lines/([1-9][0-9]*)",
-        "method" : "LineController.show",
+        "method" : "LineController.create",
         "params" : [
             "id"
         ]
     },
     {
-        "verb" : "POST",
-        "uri" : "/api/orders/([1-9][0-9]*)/lines",
-        "method" : "LineController.create"
-    },
-    {
         "verb" : "PUT",
-        "uri" : "/api/orders/([1-9][0-9]*)/lines/([1-9][0-9]*)",
+        "uri" : "/api/orders/([1-9][0-9]*)/lines",
         "method" : "LineController.update",
         "params" : [
             "id"
@@ -223,7 +213,8 @@
         "uri" : "/api/orders/([1-9][0-9]*)/lines/([1-9][0-9]*)",
         "method" : "LineController.delete",
         "params" : [
-            "id"
+            "idCommand",
+            "idLine"
         ]
     }
 ]

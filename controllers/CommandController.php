@@ -126,7 +126,7 @@ final class CommandController {
      *
      * PUT /api/orders/{id}
      * Accès: PUBLIC => Passage de panier à commande à traiter
-     *  & création du user en DB (ROLE_PUBLIC).
+     *  & créer le user en DB (ROLE_PUBLIC).
      * Accès: ADMIN => Changements de status de la commande.
      * 
      * @param array $assocParams Tableau associatif des paramètres.
@@ -143,9 +143,9 @@ final class CommandController {
         if(!$command)
             Router::responseJson(false, "Aucune commande trouvée.");
         // Si status commande = 'cart'
-        if($command->status === 'cart') {
+        if($command->status === 'cart')
             CommandController::updateCartCommand($command);
-        }
+        
     }
     /**
      * Supprime une commande status "cart"
@@ -192,7 +192,7 @@ final class CommandController {
      * @param Command $command
 	 * @return array l'instance du User et le tableau des erreurs.
      */
-    private static function processingUserOnCommand(Command $command) : array {
+    private static function processingUserOnCommand() : array {
         // Récupérer les données reçues en PUT et les mettre dans la "Super Globale" $_PUT.
 		parse_str(file_get_contents("php://input"),$_PUT);
         // Initialiser le tableau des erreurs.
@@ -205,28 +205,28 @@ final class CommandController {
             $user->roles = json_encode(["ROLE_PUBLIC"]);
         }
         // Valider les données.
-        $user->email = filter_var($_PUT['email'], FILTER_SANITIZE_EMAIL) ?: null;
-        if(!$user->email || !$user->isValidEmail())
+        $user->email = filter_var($_PUT['email'], FILTER_SANITIZE_EMAIL) ?: $user->email;
+        if(!$user->email || !$user->isValidEmail() )
             $errors[] = 'Email invalide';
-        $user->lastName = filter_var($_PUT['lastName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        $user->lastName = filter_var($_PUT['lastName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: $user->lastName;
         if(!$user->lastName || !$user->isValidLastName())
             $errors[] = "Nom de famille invalide.";
-        $user->firstName = filter_var($_PUT['firstName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        $user->firstName = filter_var($_PUT['firstName'], FILTER_SANITIZE_SPECIAL_CHARS) ?: $user->firstName;
         if(!$user->firstName || !$user->isValidFirstName())
             $errors[] = "Prénom trop long.";    
-        $user->mobile = filter_var($_PUT['mobile'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        $user->mobile = filter_var($_PUT['mobile'], FILTER_SANITIZE_SPECIAL_CHARS) ?: $user->mobile;
         if(!$user->mobile || !$user->isValidMobile())
             $errors[] = "Numéro de téléphone erroné.";    
-        $user->postMail = filter_var($_PUT['postMail'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        $user->postMail = filter_var($_PUT['postMail'], FILTER_SANITIZE_SPECIAL_CHARS) ?: $user->postMail;
         if(!$user->postMail || !$user->isValidPostMail())
             $errors[] = "Adresse incorrecte.";
-        $user->postMailComplement = filter_var($_PUT['postMailComplement'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        $user->postMailComplement = filter_var($_PUT['postMailComplement'], FILTER_SANITIZE_SPECIAL_CHARS) ?: $user->postMailComplement;
         if($user->postMailComplement && !$user->isValidPostMailComplement())
             $errors[] = "Complément d'adresse invalide.";
-        $user->zipCode = filter_var($_PUT['zipCode'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        $user->zipCode = filter_var($_PUT['zipCode'], FILTER_SANITIZE_SPECIAL_CHARS) ?: $user->zipCode;
         if(!$user->zipCode || !$user->isValidZipCode())
             $errors[] = "Code postal invalide.";
-        $user->city = filter_var($_PUT['city'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        $user->city = filter_var($_PUT['city'], FILTER_SANITIZE_SPECIAL_CHARS) ?: $user->city;
         if(!$user->city || !$user->isValidCity())
             $errors[] = "Commune ou ville incorrecte.";
         // Remplir la réponse.
@@ -242,7 +242,7 @@ final class CommandController {
      */
     private static function updateCartCommand(Command $command) : void {
         // Récupérer et traiter les information du user reçues en PUT.
-        $processing = CommandController::processingUserOnCommand($command);
+        $processing = CommandController::processingUserOnCommand();
         $user = $processing['user'];
         $errors = $processing['errors'];
         // Si aucune erreur, tenter de persister le user en tenant compte de l'email (unique)

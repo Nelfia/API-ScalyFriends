@@ -72,7 +72,7 @@ class Command extends Entity  {
      */
     protected ?User $agent = null;
     /**
-     * Lignes de la commande.
+     * Tableau contenant les lignes de la commande.
      *
      * @var array|null
      */
@@ -81,10 +81,10 @@ class Command extends Entity  {
     /**
      * Constructeur.
      *
-     * @param integer|null $idOrder PK.
+     * @param integer|null idCommand PK.
      */
-    public function __construct(?int $idOrder = null) {
-        $this->idOrder = $idOrder;
+    public function __construct(?int $idCommand = null) {
+        $this->idCommand = $idCommand;
     }
 
     /**
@@ -115,8 +115,8 @@ class Command extends Entity  {
      * @return array|null Tableau des lignes de la commande ou null si non trouvées.
      */
     public function getLines(): ?array {
-        if ($this->lines === []) {
-            $this->lines = Line::findAllBy(['idCommand' => $this->idOrder], []);
+        if ($this->lines === null) {
+            $this->lines = Line::findAllBy(['idCommand' => $this->idCommand], []);
         }
         return $this->lines;
     }

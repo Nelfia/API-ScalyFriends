@@ -40,7 +40,7 @@ ENGINE = InnoDB;
 -- Table `mydb`.`order`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `mydb`.`order` (
-  `idOrder` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `idCommand` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `idCustomer` INT UNSIGNED NOT NULL,
   `idAgent` INT UNSIGNED NOT NULL,
   `orderDate` DATETIME NULL,
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`order` (
   `datePending` DATETIME NULL,
   `dateClosed` DATETIME NULL,
   `dateCancelled` DATETIME NULL,
-  PRIMARY KEY (`idOrder`),
+  PRIMARY KEY (`idCommand`),
   INDEX `fk_commande_user_idx` (`idCustomer` ASC) VISIBLE,
   INDEX `fk_commande_user1_idx` (`idAgent` ASC) VISIBLE,
   UNIQUE INDEX `ref_UNIQUE` (`ref` ASC) VISIBLE,
@@ -141,16 +141,16 @@ ENGINE = InnoDB;
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `mydb`.`line` (
   `idLine` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `idOrder` INT UNSIGNED NOT NULL,
+  `idCommand` INT UNSIGNED NOT NULL,
   `idProduct` INT UNSIGNED NOT NULL,
   `quantity` INT NULL,
   `price` DOUBLE NULL,
   PRIMARY KEY (`idLine`),
-  INDEX `fk_ligne_commande1_idx` (`idOrder` ASC) VISIBLE,
+  INDEX `fk_ligne_commande1_idx` (`idCommand` ASC) VISIBLE,
   INDEX `fk_ligne_produit1_idx` (`idProduct` ASC) VISIBLE,
   CONSTRAINT `fk_ligne_commande1`
-    FOREIGN KEY (`idOrder`)
-    REFERENCES `mydb`.`order` (`idOrder`)
+    FOREIGN KEY (`idCommand`)
+    REFERENCES `mydb`.`order` (`idCommand`)
     ON DELETE RESTRICT
     ON UPDATE RESTRICT,
   CONSTRAINT `fk_ligne_produit1`
