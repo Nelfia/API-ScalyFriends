@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`line` (
   INDEX `fk_ligne_produit1_idx` (`idProduct` ASC) VISIBLE,
   CONSTRAINT `fk_ligne_commande1`
     FOREIGN KEY (`idCommand`)
-    REFERENCES `mydb`.`order` (`idCommand`)
+    REFERENCES `mydb`.`command` (`idCommand`)
     ON DELETE RESTRICT
     ON UPDATE RESTRICT,
   CONSTRAINT `fk_ligne_produit1`

@@ -51,6 +51,12 @@ class Product extends Entity  {
      */
     public ?string $description = null;
     /**
+     * Chemin de l'image située dans assets/img.
+     *
+     * @var string|null
+     */
+    public ?string $img = null;
+    /**
      * Référence unique du produit.
      *
      * @var string|null
@@ -91,7 +97,7 @@ class Product extends Entity  {
      *
      * @var string|null
      */
-    public ?string $birth = null;
+    public ?int $birth = null;
     /**
      * Le produit nécessite d'avoir une certification.
      *

@@ -17,7 +17,7 @@ final class ProductControllerException extends Exception {
     public const INVALID_TYPE = "Invalid type.";
     public const INVALID_NAME = "Invalid name.";
     public const INVALID_DESCRIPTION = "Invalid description.";
-    public const INVALID_REF = "Invalid ref.";
+    public const INVALID_IMG = "Invalid image's path.";
     public const INVALID_PRICE = "Invalid price.";
     public const INVALID_DUPLICATE_REF = "Invalid duplicate ref.";
     public const INVALID_STOCK = "Invalid stock.";

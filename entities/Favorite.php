@@ -60,9 +60,9 @@ class Favorite extends Entity  {
     /**
      * Retourne l'instance du User à qui appartient le favori en lazy loading.
      *
-     * @return User Instance du User à qui appartient le favori.
+     * @return User|null Instance du User à qui appartient le favori si trouvé, sinon retourne null.
      */
-    public function getOrder(): ?User {
+    public function getUser(): ?User {
         if ($this->user === null) {
             $this->user = User::findOneBy(['idUser' => $this->idUser], []);
         }
@@ -72,7 +72,7 @@ class Favorite extends Entity  {
     /**
      * Retourne l'instance du Produit inséré dans la ligne en lazy loading.
      *
-     * @return Product Instance du Produit inséré dans la ligne.
+     * @return Product|null Instance du Produit inséré dans la ligne si trouvé, sinon null.
      */
     public function getProduct(): ?Product {
         if ($this->product === null) {

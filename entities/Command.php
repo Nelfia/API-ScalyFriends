@@ -81,7 +81,7 @@ class Command extends Entity  {
     /**
      * Constructeur.
      *
-     * @param integer|null idCommand PK.
+     * @param integer|null $idCommand PK.
      */
     public function __construct(?int $idCommand = null) {
         $this->idCommand = $idCommand;

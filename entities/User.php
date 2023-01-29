@@ -119,12 +119,6 @@ class User extends Entity implements LoggableUser {
      * @var array|null
      */
     protected ?Command $cart = null;
-    /**
-     * Lignes de produits insérées dans le panier.
-     *
-     * @var array|null
-     */
-    protected ?array $cartLines = [];
     
 
     /**
@@ -254,18 +248,7 @@ class User extends Entity implements LoggableUser {
         }
         return $this->cart;
     }
-    /**
-     * Retourne les lignes du panier du user en lazy loading.
-     *
-     * @return array Tableau des produits créés.
-     */
-    public function getCartLines(): array {
-        if ($this->cartLines === []) {
-            $idCommand = $this->cart?->idCommand;
-            $this->cartLines = Line::findAllBy(['idCommand' => $idCommand ], []);
-        }
-        return $this->cartLines;
-    }
+
     /**
      * Retire les propriétés pwd et role du User pour ne pas transmettre ces données au client.
      *

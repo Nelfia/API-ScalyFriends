@@ -12,6 +12,7 @@ use Exception;
 
 /**
  * Classe 100% statique de gestion des produits.
+ * @throws ProductControllerException
  */
 final class ProductController {
     /**
@@ -28,6 +29,8 @@ final class ProductController {
      * @return void
      */
     public static function list() : void {
+        // Initialisation du tableau des résultats.
+        $results = [];
         // Récupérer tous les produits non archivés dans l'ordre alphabétique.
         $products = Product::findAllBy([ "isVisible" => true ], ['name' => 'ASC']);
         if($products){
@@ -102,6 +105,9 @@ final class ProductController {
         $product->description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if(!$product->description)
             $errors[] = ProductControllerException::INVALID_DESCRIPTION;
+        $product->img = "/assets/img/" . filter_input(INPUT_POST, 'description', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$product->img)
+            $errors[] = ProductControllerException::INVALID_IMG;
         $product->price = filter_input(INPUT_POST, 'price', FILTER_VALIDATE_FLOAT) ?: null;
         if(!$product->price || $product->price <= 0 || $product->price > 10000)
             $errors[] = ProductControllerException::INVALID_PRICE;
@@ -158,7 +164,7 @@ final class ProductController {
             try {
                 $product->persist();
             } catch (Exception) {
-                $errors[] = "La référence existe déjà.";
+                $errors[] = ProductControllerException::INVALID_DUPLICATE_REF;
             }
             // Si toujours pas d'erreur.
             if(!$errors) {
@@ -221,6 +227,9 @@ final class ProductController {
         $product->description = filter_var($_PUT['description'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if($product->description && mb_strlen($product->description) < 10)
             $errors[] = ProductControllerException::INVALID_DESCRIPTION;
+        $product->img = ("/assets/img/" . filter_var($_PUT['img'], FILTER_SANITIZE_SPECIAL_CHARS)) ?: null;
+        if($product->img && mb_strlen($product->img) > 255)
+            $errors[] = ProductControllerException::INVALID_IMG;
         $product->price = filter_var($_PUT['price'], FILTER_VALIDATE_FLOAT) ?: null;
         if($product->price && ($product->price <= 0 || $product->price > 10000))
             $errors[] = ProductControllerException::INVALID_PRICE;
@@ -228,15 +237,15 @@ final class ProductController {
         if($product->stock && $product->stock < 0)
             $errors[] = ProductControllerException::INVALID_STOCK;
         $product->gender = filter_var($_PUT['gender'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->gender && ($product->gender !== "f" || $product->gender !== "m" || mb_strlen($product->gender) > 1)) 
-                $errors[] = ProductControllerException::INVALID_GENDER;
+        if($product?->gender && (!($product?->gender === "F") && !($product?->gender === "M")))
+            $errors[] = ProductControllerException::INVALID_GENDER;
         $product->species = filter_var($_PUT['species'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if($product->species && (mb_strlen($product->species) > 200 || mb_strlen($product->species) < 3))
             $errors[] = ProductControllerException::INVALID_SPECIES; 
         $product->race = filter_var($_PUT['race'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if($product->race && (mb_strlen($product->race) > 200))
                 $errors[] = ProductControllerException::INVALID_RACE;
-        $product->birth = filter_var($_PUT['birth'], FILTER_VALIDATE_INT) ?: null;
+        $product->birth = filter_var((int)$_PUT['birth'], FILTER_VALIDATE_INT) ?: null;
         if($product->birth && ($product->birth < 2010|| $product->birth > date('Y')))
                 $errors[] = ProductControllerException::INVALID_BIRTH;
         $product->requiresCertification = filter_var($_PUT['requiresCertification'], FILTER_VALIDATE_BOOL) !== null ?: null;
@@ -263,14 +272,13 @@ final class ProductController {
             // Remplir la réponse à envoyer au client.
             $success = true;
             $message = "Produit a bien été mis à jour";
-            $results['product'] = $product;
         } else {
             // Remplir la réponse à envoyer au client.
             $success = false;
             $message = "Impossible de modifier le produit !";
-            $results['errors'] = $errors;            
-            $results['product'] = $product;            
+            $results['errors'] = $errors;
         }
+        $results['product'] = $product;
         // Envoyer la réponse au client.
         Router::responseJson($success, $message, $results);
     }
@@ -298,5 +306,13 @@ final class ProductController {
         $results = [];
         $results['jwt_token'] = JWT::isValidJWT();
         Router::responseJson(true, "Le produit a été supprimé.", $results);
+    }
+
+    /**
+     *
+     * @return void
+     */
+    public static function addtoCart() : void {
+        // Vérifier si idPanier reçu.
     }
 }

@@ -92,6 +92,12 @@ final class LineController {
      * @return void
      */
     public static function update(array $assocParams) : void {
+        // Initialiser le tableau des erreurs et des résultats.
+        $errors = $results = [];
+        // Ajouter le token dans les résultats.
+        $results['jwt_token'] = JWT::isValidJWT();
+        // Récupérer l'id de la commande et celui du produit de la ligne à modifier.
+
     }
     /**
      * Supprime une ligne de la commande.

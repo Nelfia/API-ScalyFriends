@@ -40,15 +40,15 @@ final class CommandController {
         $status = $assocParams['status']?? null;
         // exit(json_encode($status));
         // Récupérer toutes les commandes en fonction du user logué et du status demandé.
-        $orders = $user->getCommands($status)?:null;
+        $commands = $user->getCommands($status)?:null;
         // Initialiser le tableau des résultats.
         $results = [];
-        if($orders){
+        if($commands){
             $success = true;
             $message = "Voici la liste de toutes les commandes";
-            $results['nb'] = count($orders);
+            $results['nb'] = count($commands);
             $results['status'] = $status?: "all";
-            $results['orders'] = $orders;
+            $results['commands'] = $commands;
         } else {
             $success = false;
             $message = "Aucune commande trouvée .";

@@ -29,7 +29,7 @@ class Entity extends ORM {
      * Repose sur les 3 règles ci-dessus.
      * Redéfinir dans les classes entités si nécessaire.
      * 
-     *@throws EntityException Si describe appelée sur Entity elle-même.
+     * @throws EntityException Si describe appelée sur Entity elle-même.
      * @return array Tableau associatif.
      */
     protected static function describe() : array {
