@@ -56,24 +56,8 @@ class Command extends Entity  {
      * @var string|null
      */
     public ?string $lastChange = null;
-
     /**
-     * Instance du User qui a créé la commande.
-     * Chargement en lazy loading.
-     *
-     * @var User|null
-     */
-    protected ?User $customer = null;
-    /**
-     * Instance du User qui a pris en charge la commande.
-     * Chargement en lazy loading.
-     *
-     * @var User|null
-     */
-    protected ?User $agent = null;
-    /**
-     * Tableau contenant les lignes de la commande.
-     *
+     * Tableau des lignes de la commande
      * @var array|null
      */
     protected ?array $lines = null;
@@ -88,28 +72,6 @@ class Command extends Entity  {
     }
 
     /**
-     * Retourne l'instance du client en lazy loading.
-     *
-     * @return User Instance du client.
-     */
-    public function getCustomer(): ?User {
-        if ($this->customer === null) {
-            $this->customer = User::findOneBy(['idUser' => $this->idCustomer], []);
-        }
-        return $this->customer;
-    }  
-    /**
-     * Retourne l'instance de l'agent en lazy loading.
-     *
-     * @return User|null Instance de l'agent ou null si non trouvé.
-     */
-    public function getAgent(): ?User {
-        if ($this->agent === null) {
-            $this->agent = User::findOneBy(['idUser' => $this->idAgent], []);
-        }
-        return $this->agent;
-    }
-    /**
      * Retourne le tableau des lignes de la commande en lazy loading.
      *
      * @return array|null Tableau des lignes de la commande ou null si non trouvées.
@@ -119,5 +81,13 @@ class Command extends Entity  {
             $this->lines = Line::findAllBy(['idCommand' => $this->idCommand], []);
         }
         return $this->lines;
+    }
+
+    /**
+     * Vérifie si la commande a le status "cart".
+     * @return bool TRUE si la commande a le status "cart", sinon FALSE.
+     */
+    public function isCart() : bool {
+        return $this->status === "cart";
     }
 }

@@ -112,13 +112,13 @@ class User extends Entity implements LoggableUser {
      */
     protected ?array $products = [];
     /**
-     * Panier du user.
+     * Id du Panier du user.
      * (Lignes de la commande avec le status "panier").
      * Chargement en lazy loading.
      *
-     * @var array|null
+     * @var int|null idCommand du panier
      */
-    protected ?Command $cart = null;
+    protected ?int $idCart = null;
     
 
     /**
@@ -238,15 +238,16 @@ class User extends Entity implements LoggableUser {
         return $this->products;
     }
     /**
-     * Retourne le panier du user en lazy loading.
+     * Retourne l'idCommand du panier du user en lazy loading.
      *
-     * @return Command|null Commande avec status "cart" du user.
+     * @return int|null idCommand de la commande avec status "cart" du user.
      */
-    public function getCart(): ?Command {
-        if ($this->cart === null) {
-            $this->cart = Command::findOneBy(['idCustomer' => $this->idUser,'status' => "cart"], []);
+    public function getIdCart(): ?int {
+        if ($this->idCart === null) {
+            $cart = Command::findOneBy(['idCustomer' => $this->idUser,'status' => "cart"], []);
+            $this->idCart = $cart->idCommand;
         }
-        return $this->cart;
+        return $this->idCart;
     }
 
     /**

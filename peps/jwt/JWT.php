@@ -16,6 +16,7 @@ require_once '.env.local';
  * (Idéalement, SECRET est une phrase codée).
  */
 final class JWT {
+    //TODO: Système de cache + système actualisation expiration token lorsque user reste en ligne (au clic par ex)
 
     /**
      * Header par défault.
@@ -42,7 +43,7 @@ final class JWT {
      * @param int $timeout Durée de validité du Token en secondes (par défaut: 1 jour).
      * @return string JWT - Token du user logué.
      */
-    public static function generate(array $header, array $payload, string $secret = SECRET, int $timeout = 86400): string {
+    public static function generate(array $header, array $payload, int $timeout = 86400, string $secret = SECRET): string {
         // Si tableau vide passé en paramètre, par défaut utiliser self::$header ('alg' => 'HS256').
         if($header ===  [])
             $header = self::$header;
@@ -69,10 +70,8 @@ final class JWT {
         // Encoder en base64 la signature + "nettoyage" des valeurs encodées
         $base64Signature = base64_encode($signature);
         $signature = str_replace(['+','/','='], ['-','_',''], $base64Signature);
-        // Créer le token
-        $jwt = $base64Header . '.' . $base64Payload . '.' . $signature;
-        // Retourner le token
-        return $jwt;
+        // Créer le token et le retourner
+        return $base64Header . '.' . $base64Payload . '.' . $signature;
     }
 
     /**
@@ -95,13 +94,13 @@ final class JWT {
      * @param string $secret Phrase secrète.
      * @return boolean Retourne TRUE si le token est valide, FALSE dans le cas contraire.
      */
-    public static function check(string $token, string $secret): bool {
+    public static function check(string $token, string $secret = SECRET): bool {
         // On récupère le header et le payload
         $header = self::getHeader($token);
         $payload = self::getPayload($token);
 
         // On génère un token de vérification
-        $veriftoken = self::generate($header, $payload, $secret, 0);
+        $veriftoken = self::generate($header, $payload, 0, $secret);
 
         return $token === $veriftoken;
     }

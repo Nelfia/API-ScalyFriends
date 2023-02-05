@@ -1,16 +1,21 @@
 [
     {
         "verb" : "GET",
-        "uri" : "/test/([1-9][0-9]*)",
-        "method" : "TestController.test",
-        "params" : [
-            "id"
-        ]
+        "uri" : "/",
+        "method" : "TestController.test"
     },
     {
         "verb" : "GET",
         "uri" : "/api/products",
         "method" : "ProductController.list"
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/products/(animal|material|feeding)",
+        "method" : "ProductController.list",
+        "params" : [
+            "category"
+        ]
     },
     {
         "verb" : "GET",

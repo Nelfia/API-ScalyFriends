@@ -170,7 +170,7 @@ final class CommandController {
         $now = new DateTime();
         $nb = 0;
         foreach($commands as $command) {
-            // Si le ^panier n'est pas rattachée à un user.
+            // Si le panier n'est pas rattachée à un user.
             if(!$command->idCustomer){
                 $lastChange = new DateTime($command->lastChange);
                 $interval = date_diff($lastChange, $now);

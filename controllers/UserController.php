@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace controllers;
 
+use cfg\CfgApp;
 use entities\User;
 use Error;
 use Exception;
@@ -34,7 +35,7 @@ final class UserController {
         // Initialiser le tableau des résultats.
         $results = array();
         // Vérifier les droits d'accès du user.
-        $success = $user?->isGranted("ROLE_ADMIN") !== null ?: false;
+        $success = $user?->isGranted("ROLE_ADMIN") ?: false;
         // Si pas de user logué ou role non autorisé
         if(!$user || !$success){
             $message = "Vous n'êtes pas autorisé à accéder à cette page.";
@@ -223,7 +224,7 @@ final class UserController {
     }
     /**
      * Tente de loguer un utilisateur et retourne un jeton JWT.
-     * 
+     *
      * POST /api/users/login
      * Accès: PUBLIC.
      *
@@ -238,26 +239,28 @@ final class UserController {
         $errors = [];
         // Initialiser le tableau de la réponse JSON.
         $results = array();
+        // Récupérer les données envoyées par le client.
+        $data = CfgApp::getInputData();
+        // TODO: Vérifier et utiliser les données reçues via $_POST
+        // var_dump($_POST);
+        // var_dump($data);
         // Récupérer les données et tenter le login.
-        $user->username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_SPECIAL_CHARS);
-        $pwd = filter_input(INPUT_POST, 'pwd', FILTER_SANITIZE_SPECIAL_CHARS);
+        $user->username = filter_var($_POST['username'] ??$data['username'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
+        $pwd = filter_var($_POST['pwd'] ??$data['pwd'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
         // Si login OK, générer le JWT et renvoyer réponse en Json.
-		$success = $user->login($pwd);
-        if ($success) {
+        if ($user->login($pwd)) {
             // On crée le contenu (payload)
             $payload['user_id'] = $user->idUser ;
-            $token = JWT::generate([], $payload);
-            $message = "Vous êtes désormais connecté !";
-            $results['jwt_token'] = $token;
-        } else{
-			$message = "Login failed !";
+            $token = JWT::generate([], $payload, 60);
+            $results['idToken'] = json_encode($token);
+            $results['expires'] = json_encode(JWT::getPayload($token)['exp']);
+        } else
             $results['errors'] = $errors;
-        }
 		// Par mesure de sécurité, retirer le role et le mdp du user dans la réponse.
-		unset($user->pwd);
-		unset($user->roles);
+        $user->getIdCart();
+        $user->secureReturnedUser();
 		$results['user'] = $user;
-        Router::responseJson($success, $message, $results);
+        Router::json(json_encode($results));
 	}
     /**
      * Délogue l'utilisateur via son JWT.

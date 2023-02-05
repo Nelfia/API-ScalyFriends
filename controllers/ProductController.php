@@ -24,26 +24,23 @@ final class ProductController {
      * Envoie liste de tous les produits.
      * 
      * GET /api/products
+     * GET /api/products/(animals|materials|feeding)
      * Accès: PUBLIC.
      *
      * @return void
      */
-    public static function list() : void {
-        // Initialisation du tableau des résultats.
-        $results = [];
-        // Récupérer tous les produits non archivés dans l'ordre alphabétique.
-        $products = Product::findAllBy([ "isVisible" => true ], ['name' => 'ASC']);
-        if($products){
-            $success = true;
-            $message = "Voici la liste de tous les produits";
-            $results['nb'] = count($products);
-            $results['products'] = $products;
-        } else {
-            $success = false;
-            $message = "Aucun produit trouvé !";
+    public static function list(array $assocParams) : void {
+        $filters = [];
+        if($assocParams && $assocParams['category'] !== null) {
+            $filters['category'] = (string)$assocParams['category'];
         }
-        // Renvoyer la réponse au client.
-        Router::responseJson($success, $message, $results);
+        $filters['isVisible'] = true;
+        // Récupérer tous les produits non archivés dans l'ordre alphabétique.
+        $products = Product::findAllBy($filters, []);
+        if(!$products) {
+            Router::json(json_encode("erreur: aucun résultat."));
+        }
+        Router::json((json_encode($products)), true);
     }
     /**
      * Affiche le détail d'un produit.
@@ -61,11 +58,9 @@ final class ProductController {
         $product = Product::findOneBy(['idProduct' => $idProduct, "isVisible" => true ]);
         // Si aucun produit trouvé, retourner l'erreur au client.
         if(!$product)
-            Router::responseJson(false, "Aucun produit trouvé.", []);
-        $results = [];
-        $results['product'] = $product;
+            Router::json(json_encode("Aucun produit trouvé."));
         // Envoyer la réponse en json.
-        Router::responseJson(true, "Produit récupéré .", $results);
+        Router::json(json_encode($product));
     }
     /**
      * Contrôle les données reçues & insère un nouveau produit en DB.
