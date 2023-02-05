@@ -251,7 +251,7 @@ final class UserController {
         if ($user->login($pwd)) {
             // On crée le contenu (payload)
             $payload['user_id'] = $user->idUser ;
-            $token = JWT::generate([], $payload, 60);
+            $token = JWT::generate([], $payload, 3600);
             $results['idToken'] = json_encode($token);
             $results['expires'] = json_encode(JWT::getPayload($token)['exp']);
         } else

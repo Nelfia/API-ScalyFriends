@@ -24,7 +24,9 @@ final class LineController {
     /**
      * Contrôle les données reçues & insère une nouvelle ligne en DB.
      * Se fait uniquement lorsque la commande a un status 'cart'.
-     * Si le produit a déjà été inséré dans une des lignes de la commande, pas de création de ligne -> ajout du/des produits à la ligne existante si le stock le permet.
+     * Si le produit a déjà été inséré dans une des lignes de la commande,
+     * pas de création de ligne -> ajout du/des produits à la ligne existante si
+     * le stock le permet.
      *
      * POST /api/orders/{id}/lines
      * Accès: PUBLIC.
