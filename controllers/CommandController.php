@@ -36,18 +36,19 @@ final class CommandController {
         // Vérifier si User logué.
         $user = User::getLoggedUser();
         if(!$user) 
-        Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
+            Router::json(json_encode("Aucun user connecté"));
         $status = $assocParams['status']?? null;
-        // exit(json_encode($status));
+        if($status === "cart")
+            Router::json(json_encode($user->getCart()));
         // Récupérer toutes les commandes en fonction du user logué et du status demandé.
         $commands = $user->getCommands($status)?:null;
         // Initialiser le tableau des résultats.
         $results = [];
         if($commands){
-            $success = true;
-            $message = "Voici la liste de toutes les commandes";
+            // $success = true;
+            // $message = "Voici la liste de toutes les commandes";
             $results['nb'] = count($commands);
-            $results['status'] = $status?: "all";
+            // $results['status'] = $status?: "all";
             $results['commands'] = $commands;
         } else {
             $success = false;
@@ -75,15 +76,10 @@ final class CommandController {
         // Récupérer la commande.
         $command = Command::findOneBy(['idCommand' => $idCommand]);
         $command?->getLines();
-        $results = [];
-        $results['jwt_token'] = JWT::isValidJWT();
         // Si l'utilisateur est admin.
         if(($user->isGranted('ROLE_USER') && $command?->idCustomer === $user->idUser) || $user->isGranted('ROLE_ADMIN')) {
-            $results['command'] = $command;
-            Router::responseJson(true, "Voici la commande.", $results);
+            Router::json(json_encode($command));
         }
-        // Envoyer la réponse en json.
-        Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.", $results);
     }
     /**
      * Contrôle les données reçues en POST & créé une nouvelle commande en DB.
@@ -100,7 +96,6 @@ final class CommandController {
         $results = [];
         // Vérifier si user connecté, récupérer son token et l'insérer dans la réponse.
         $user = User::getLoggedUser();
-        $results['jwt_token'] = JWT::isValidJWT();
         // Si user connecté et que ce n'est pas un ADMIN.
         if($user?->isGranted('ROLE_ADMIN')){
             Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.", $results);

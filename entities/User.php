@@ -119,6 +119,11 @@ class User extends Entity implements LoggableUser {
      * @var int|null idCommand du panier
      */
     protected ?int $idCart = null;
+    /**
+     * Panier de l'utilisateur.
+     * @var array|null
+     */
+    protected ?Command $cart = null;
     
 
     /**
@@ -248,6 +253,18 @@ class User extends Entity implements LoggableUser {
             $this->idCart = $cart->idCommand;
         }
         return $this->idCart;
+    }
+
+    /**
+     * Retourne la commande au status 'cart' de l'utilisateur.
+     * @return Command|null Panier de l'utilisateur
+     */
+    public function getCart(): ?Command {
+        if($this->cart === null) {
+            $this->cart = Command::findOneBy(['idCustomer' => $this->idUser]);
+            $this->cart->getLines();
+        }
+        return $this->cart;
     }
 
     /**
