@@ -79,6 +79,7 @@ class Command extends Entity  {
     public function getLines(): ?array {
         if ($this->lines === null) {
             $this->lines = Line::findAllBy(['idCommand' => $this->idCommand], []);
+            foreach (($this->lines) as $line) $line->getProduct();
         }
         return $this->lines;
     }
