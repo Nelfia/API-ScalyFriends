@@ -92,29 +92,24 @@ final class CommandController {
      * @return void
      */
     public static function create() : void {
-        // Initialiser le tableau des résultats.
-        $results = [];
         // Vérifier si user connecté, récupérer son token et l'insérer dans la réponse.
         $user = User::getLoggedUser();
         // Si user connecté et que ce n'est pas un ADMIN.
-        if($user?->isGranted('ROLE_ADMIN')){
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.", $results);
-        }
+        if($user?->isGranted('ROLE_ADMIN'))
+            Router::json(json_encode(0));
         // Vérifier que le user n'a pas déjà un panier (max. 1 par user)
         if($user?->getCart()) {
-            $results['cart'] = $user->getCart();
-            Router::responseJson(false, "Création impossible, l'utilisateur a déjà un panier.", $results);
+            $cart = $user->getCart();
+            Router::json(json_encode($cart));
         }
         // Créer et remplir la nouvelle commande.
         $command = new Command();
         $command->status = 'cart';
-        $command->idCustomer = $user?->idUser;
+        $command->idCustomer = $user->idUser ?? null;
         $command->lastChange = date('Y-m-d H:i:s');
         // Persister la commande en BD.
         $command->persist();
-        $results['cart'] = $command;
-        // Envoyer la réponse au client.
-        Router::responseJson(true, "Le panier a bien été créé.", $results);
+        Router::json(json_encode($command));
     }
     /**
      * Modifie le status d'une commande existante.

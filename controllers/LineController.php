@@ -111,7 +111,6 @@ final class LineController {
      * @return void
      */
     public static function delete(array $assocParams) : void {
-        exit(json_encode("Well play!"));
         // Vérifier si commande existante et si status "cart"
         $line = Line::findOneBy(['idLine' => (int)$assocParams['idLine']]);
         $command = $line->getCommand();
@@ -119,7 +118,7 @@ final class LineController {
             Router::json('Impossible de supprimer cette ligne: la commande a déjà été passée.');
         // Vérifier si user logué est autorisé à modifier le panier
         $user = User::getLoggedUser();
-        if(!$user->isGranted("ROLE_ADMIN") || ($user->idUser !== $command->idCustomer))
+        if($user->isGranted("ROLE_ADMIN") || ($user->idUser !== $command->idCustomer))
             Router::json("Vous n'êtes pas autorisé à accéder à cette page.");
         $line->remove();
         Router::json("La ligné a été supprimée du panier.");

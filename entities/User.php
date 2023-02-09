@@ -250,7 +250,7 @@ class User extends Entity implements LoggableUser {
     public function getIdCart(): ?int {
         if ($this->idCart === null) {
             $cart = Command::findOneBy(['idCustomer' => $this->idUser,'status' => "cart"], []);
-            $this->idCart = $cart->idCommand;
+            $this->idCart = $cart->idCommand ?? null;
         }
         return $this->idCart;
     }
@@ -261,8 +261,8 @@ class User extends Entity implements LoggableUser {
      */
     public function getCart(): ?Command {
         if($this->cart === null) {
-            $this->cart = Command::findOneBy(['idCustomer' => $this->idUser]);
-            $this->cart->getLines();
+            $this->cart = Command::findOneBy(['idCustomer' => $this->idUser, 'status' => 'cart']);
+            $this->cart?->getLines();
         }
         return $this->cart;
     }
