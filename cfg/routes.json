@@ -206,14 +206,6 @@
         ]
     },
     {
-        "verb" : "PUT",
-        "uri" : "/api/orders/([1-9][0-9]*)/lines",
-        "method" : "LineController.update",
-        "params" : [
-            "idCommand"
-        ]
-    },
-    {
         "verb" : "DELETE",
         "uri" : "/api/orders/([1-9][0-9]*)/lines/([1-9][0-9]*)",
         "method" : "LineController.delete",

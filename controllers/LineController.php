@@ -30,7 +30,7 @@ final class LineController {
      *
      * Envoie du panier au client.
      *
-     * POST /api/orders/{id}/lines
+     * POST /api/orders/{idCommand}/lines
      * Accès: USER.
      *
      * @param array $assocParams
@@ -41,7 +41,7 @@ final class LineController {
         $user = User::getLoggedUser();
         // Créer une nouvelle ligne.
         $line = new Line();
-        $line->idCommand = (int)$assocParams['id'];
+        $line->idCommand = (int)$assocParams['idCommand'];
         // Récupérer la commande.
         $panier = $line->getCommand();
         // Vérifier les droits d'accès du User.
@@ -59,34 +59,6 @@ final class LineController {
         $panier->persist();
         Router::json(json_encode($panier));
     }
-
-    // /**
-    //  * Modifie les données d'une ligne existante.
-    //  * Modifie la quantité de produits insérés dans une ligne.
-    //  *
-    //  * PUT /api/orders/([1-9][0-9]*)/lines
-    //  * Accès: USER.
-    //  *
-    //  * @param array $assocParams Tableau associatif des paramètres.
-    //  * @return void
-    //  */
-    // public static function update(array $assocParams) : void
-    // {
-    //     $idCart = (int)$assocParams['idCommand'];
-    //     $panier = Command::findOneBy(['idCommand' => $idCart, 'status' => 'cart']);
-    //     $user = User::getLoggedUser();
-    //     if (!$user || !$user->isGranted('ROLE_USER') || $user->getIdCart() !== $idCart)
-    //         Router::json(json_encode(UserControllerException::ACCESS_DENIED));
-    //     $line = new Line();
-    //     // Récupérer les données et les vérifier
-    //     $line = self::processingDataLine($line);
-    //     if(!$line)
-    //         Router::json(json_encode(self::processingDataLine($line)['errors'] ?? null));
-    //     $panier->getLines();
-    //     $panier->lastChange = date('Y-m-d H:i:s');
-    //     $panier->persist();
-    //     Router::json(json_encode($panier));
-    // }
 
     /**
      * Supprime une ligne de la commande.
@@ -113,7 +85,6 @@ final class LineController {
         $newCart->getLines();
         Router::json(json_encode($newCart));
     }
-
 
     /**
      * Vérifie les données reçues par le client.

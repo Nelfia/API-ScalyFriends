@@ -24,14 +24,21 @@ final class CommandController {
     private function __construct() {}
 
     /**
-     * Envoie la liste de toutes les commandes (ou filtrées par status).
-     * 
+     * Envoie la liste de toutes les commandes demandées.
+     * Possibilité de filtrer par status.
+     *
+     * Envoi de la réponse sous forme d'array:
+     *      ['nb'] compte le nb de commandes retournées
+     *      ['commands'] la liste de commandes
+     * Si erreur, retourne
+     *      ['error']
+     *
      * GET /api/orders
      * GET /api/orders/(cart|open|pending|closed|cancelled)
      * Accès: ROLE_USER => Reçoit la liste de ses commandes uniquement.
      * Accès: ROLE_ADMIN => Reçoit la liste de toutes les commandes.
      *
-     * @param array $assocParams Tableau associatif des paramètres.
+     * @param array|null $assocParams Tableau associatif des paramètres.
      * @return void
      */
     public static function list(array $assocParams = null) : void {
@@ -47,17 +54,13 @@ final class CommandController {
         // Initialiser le tableau des résultats.
         $results = [];
         if($commands){
-            // $success = true;
-            // $message = "Voici la liste de toutes les commandes";
             $results['nb'] = count($commands);
-            // $results['status'] = $status?: "all";
             $results['commands'] = $commands;
         } else {
-            $success = false;
-            $message = "Aucune commande trouvée .";
+            $results['error'] = CommandControllerException::NO_MATCH_FOUND;
         }
         // Renvoyer la réponse au client.
-        Router::responseJson($success, $message, $results);
+        Router::json(json_encode($results));
     }
     /**
      * Affiche le détail d'une commande.
@@ -135,7 +138,7 @@ final class CommandController {
         $targetCommand = Command::findOneBy(['idCommand' => $idCommand]);
         // Si user connecté, vérifier ses droits d'accès.
         if($user?->isGranted('ROLE_ADMIN') && $user->idUser !== $targetCommand->idCustomer)
-            Router::json(json_encode("Vous ne pouvez accéder à cette page."));
+            Router::json(json_encode(UserControllerException::ACCESS_DENIED));
         // Récupérer les données reçues en PUT.
         $_PUT = CfgApp::getInputData();
         // Vérifier les données reçues.
