@@ -272,9 +272,14 @@ class User extends Entity implements LoggableUser {
      *
      * @return User
      */
-    public function secureReturnedUser() : User {
+    public function onlyUser() : User {
         unset($this->pwd);
         unset($this->roles);
+        unset($this->cart);
+        unset($this->idCart);
+        unset($this->commands);
+        unset($this->favorites);
+        unset($this->products);
         return $this;
     }
     /**

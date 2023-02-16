@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace controllers;
 
+use cfg\CfgApp;
 use DateTime;
 use entities\Command;
+use entities\Line;
 use peps\core\Router;
 use peps\jwt\JWT;
 use entities\User;
@@ -92,7 +94,7 @@ final class CommandController {
      * @return void
      */
     public static function create() : void {
-        // Vérifier si user connecté, récupérer son token et l'insérer dans la réponse.
+        // Vérifier si user connecté.
         $user = User::getLoggedUser();
         // Si user connecté et que ce n'est pas un ADMIN.
         if($user?->isGranted('ROLE_ADMIN'))
@@ -125,16 +127,30 @@ final class CommandController {
     public static function update(array $assocParams) : void {
         // Récupérer l'id de la commande.
         $idCommand = (int)$assocParams['id'] ?? null;
-        // Initialiser le tableau de la réponse.
-        $results = [];
-        // Récupérer la commande.
-        $command = Command::findOneBy(['idCommand' => $idCommand]);
-        // Si pas de commande, envoyer réponse au client.
-        if(!$command)
-            Router::responseJson(false, "Aucune commande trouvée.");
-        // Si status commande = 'cart'
-        if($command->status === 'cart')
-            CommandController::updateCartCommand($command);
+        // Vérifier si user connecté.
+        $user = User::getLoggedUser();
+        //Initialiser le tableau des erreurs.
+        $errors = [];
+        // Récupérer la commande initiale grâce à l'id passé en paramètre.
+        $targetCommand = Command::findOneBy(['idCommand' => $idCommand]);
+        // Si user connecté, vérifier ses droits d'accès.
+        if($user?->isGranted('ROLE_ADMIN') && $user->idUser !== $targetCommand->idCustomer)
+            Router::json(json_encode("Vous ne pouvez accéder à cette page."));
+        // Récupérer les données reçues en PUT.
+        $_PUT = CfgApp::getInputData();
+        // Vérifier les données reçues.
+        $newCart = $_PUT['cart'];
+        $lines = $newCart->lines;
+        foreach ($lines as $line){
+            $newLine = new Line();
+            $newLine->idLine = filter_var($line->idLine, FILTER_SANITIZE_NUMBER_INT) ?: null;
+            $newLine->idLine = $newLine->idLine === 0 ? null : $newLine->idLine;
+
+        }
+
+            $errors[] = "Commune ou ville trop longue.";
+        //TODO: Réécrire fonction updateCart
+        // Persister ligne à ligne
         
     }
     /**
@@ -184,7 +200,7 @@ final class CommandController {
      */
     private static function processingUserOnCommand() : array {
         // Récupérer les données reçues en PUT et les mettre dans la "Super Globale" $_PUT.
-		parse_str(file_get_contents("php://input"),$_PUT);
+		$_PUT = CfgApp::getInputData();
         // Initialiser le tableau des erreurs.
         $errors = [];
         // Récupérer le user logué.
@@ -230,7 +246,7 @@ final class CommandController {
      * @param Command $command
      * @return void
      */
-    private static function updateCartCommand(Command $command) : void {
+    private static function updateCartToCommand(Command $command) : void {
         // Récupérer et traiter les information du user reçues en PUT.
         $processing = CommandController::processingUserOnCommand();
         $user = $processing['user'];

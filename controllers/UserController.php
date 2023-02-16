@@ -45,7 +45,7 @@ final class UserController {
             $users = User::findAllBy([],['lastName'=>'ASC', 'firstName'=> 'ASC']);
             $results['nb'] = count($users);
             $results['users'] = $users;
-        };
+        }
         // Envoyer la réponse au client.
         Router::responseJson($success, $message, $results);
     }
@@ -68,9 +68,7 @@ final class UserController {
 		$results['jwt_token'] = JWT::isValidJWT();
 		// Si user non logué ou token invalide.
 		if(!$loggedUser){
-			$success = false;
-			$message = "Vous devez être connecté pour accéder à cette page.";
-			Router::responseJson($success, $message, $results);
+			Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.", $results);
 		}
 		// Vérifier les droits d'accès du user.
 		$success = (($loggedUser?->isGranted("ROLE_USER") && ($loggedUser?->idUser === $idUser))||$loggedUser?->isGranted("ROLE_ADMIN"));
@@ -241,25 +239,25 @@ final class UserController {
         $results = array();
         // Récupérer les données envoyées par le client.
         $data = CfgApp::getInputData();
-        // TODO: Vérifier et utiliser les données reçues via $_POST
-        // var_dump($_POST);
-        // var_dump($data);
         // Récupérer les données et tenter le login.
         $user->username = filter_var($_POST['username'] ??$data['username'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
         $pwd = filter_var($_POST['pwd'] ??$data['pwd'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
         // Si login OK, générer le JWT et renvoyer réponse en Json.
         if ($user->login($pwd)) {
-            // On crée le contenu (payload)
+            // Créer le contenu du payload.
             $payload['user_id'] = $user->idUser ;
             $token = JWT::generate([], $payload, 3600);
+            // Construire la réponse à envoyer au client.
             $results['idToken'] = json_encode($token);
             $results['expires'] = json_encode(JWT::getPayload($token)['exp']);
+            $results['cart'] = $user->getCart();
+            $results['idCart'] = $user->getIdCart();
+            $user->onlyUser();
+            $results['user'] = $user;
         } else
             $results['errors'] = $errors;
 		// Par mesure de sécurité, retirer le role et le mdp du user dans la réponse.
-        $user->getIdCart();
-        $user->secureReturnedUser();
-		$results['user'] = $user;
+
         Router::json(json_encode($results));
 	}
     /**
