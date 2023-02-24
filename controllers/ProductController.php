@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace controllers;
 
+use cfg\CfgApp;
 use peps\core\Router;
 use peps\jwt\JWT;
 use entities\Product;
@@ -179,6 +180,15 @@ final class ProductController {
         // Envoyer la réponse au client.
         Router::responseJson($success, $message, $results);
     }
+
+    /**
+     * Importe une image.
+     * POST /api/image-upload
+     * @return void
+     */
+    public static function imageUpload() : void {
+        self::createImage(CfgApp::getInputData()['image']);
+    }
     /**
      * Modifie les données d'un produit existant.
      *
@@ -309,5 +319,23 @@ final class ProductController {
      */
     public static function addtoCart() : void {
         // Vérifier si idPanier reçu.
+    }
+
+    /**
+     * Convertir et enregistrer une image base64 dans le dossier assets/img/.
+     *
+     * @param string $img
+     * @return void
+     */
+    private static function createImage(string $img): void
+    {
+        $path = "C:/Users/qdeca/OneDrive/Bureau/projets/ap_formation/DP/sf-api/assets/img/";
+        $image_parts = explode(";base64,", $img);
+        $image_type_aux = explode("image/", $image_parts[0]);
+        $image_type = $image_type_aux[1];
+        $image_en_base64 = base64_decode($image_parts[1]);
+        $file = $path . uniqid() . '.' . $image_type;
+
+        file_put_contents($file, $image_en_base64);
     }
 }

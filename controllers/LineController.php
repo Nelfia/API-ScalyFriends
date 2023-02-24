@@ -37,23 +37,11 @@ final class LineController {
      * @return void
      */
     public static function addLine(array $assocParams) : void {
-        // Récupérer le user si logué.
-        $user = User::getLoggedUser();
         // Créer une nouvelle ligne.
         $line = new Line();
         $line->idCommand = (int)$assocParams['idCommand'];
-        // Récupérer la commande.
+        $line = self::processingDataLine($line, true);
         $panier = $line->getCommand();
-        // Vérifier les droits d'accès du User.
-        if(!$user || !$user->isGranted('ROLE_USER') || $user->idUser != $panier?->idCustomer)
-            Router::json(UserControllerException::ACCESS_DENIED);
-        if(!$panier)
-            Router::json(CommandControllerException::INVALID_ID);
-        if($panier->status !== 'cart')
-            Router::json(CommandControllerException::NO_CHANGE_ALLOWED);
-        $line = self::processingDataLine($line) ?? null;
-        if(!$line)
-            Router::json(json_encode(self::processingDataLine($line)['errors'] ?? null));
         $panier->getLines();
         $panier->lastChange = date('Y-m-d H:i:s');
         $panier->persist();
@@ -70,7 +58,7 @@ final class LineController {
      * @param array $assocParams Tableau des paramètres.
      * @return void
      */
-    public static function remove(array $assocParams) : void {
+    public static function removeLine(array $assocParams) : void {
         // Vérifier si commande existante et si status "cart"
         $line = Line::findOneBy(['idLine' => (int)$assocParams['idLine']]);
         $command = $line->getCommand();
@@ -87,13 +75,46 @@ final class LineController {
     }
 
     /**
-     * Vérifie les données reçues par le client.
+     * Contrôle l'accès et les données reçues & modifie une ligne en DB.
+     * Possible UNIQUEMENT lorsque la commande a un status 'cart'.
+     *
+     * Envoie du panier au client.
+     *
+     * PUT /api/orders/([1-9][0-9]*)/lines
+     * Accès: USER.
+     */
+    public static function updateLine(array $assocParams) : void {
+        // Créer une nouvelle ligne.
+        $line = new Line();
+        $line->idCommand = (int)$assocParams['idCommand'];
+        $line = self::processingDataLine($line, false);
+        $panier = $line->getCommand();
+        $panier->getLines();
+        $panier->lastChange = date('Y-m-d H:i:s');
+        $panier->persist();
+        Router::json(json_encode($panier));
+    }
+
+    /**
+     * Vérifie les droits d'accès et vérifie les données reçues par le client.
      * Si pas d'erreurs: persiste et retourne la ligne.
      * Sinon, retourne le tableau des erreurs.
      * @param Line $line
+     * @param bool $addingLine
      * @return Line|array
      */
-    private static function processingDataLine(Line $line): Line | array {
+    static function processingDataLine(Line $line, bool $addingLine): ?Line {
+        // Récupérer le user si logué.
+        $user = User::getLoggedUser();
+        // Récupérer la commande.
+        $panier = $line->getCommand();
+        // Vérifier les droits d'accès du User.
+        if(!$user || !$user->isGranted('ROLE_USER') || $user->idUser != $panier?->idCustomer)
+            Router::json(UserControllerException::ACCESS_DENIED);
+        if(!$panier)
+            Router::json(CommandControllerException::INVALID_ID);
+        if($panier->status !== 'cart')
+            Router::json(CommandControllerException::NO_CHANGE_ALLOWED);
         //Initialiser le tableau des erreurs.
         $errors = [];
         // Récupérer et valider les données
@@ -101,10 +122,18 @@ final class LineController {
         $line->idProduct = filter_var((int)$inputValues['idProduct'], FILTER_VALIDATE_INT) ?: null;
         if(!$line->idProduct || $line->idProduct <= 0)
             $errors[] = LineControllerException::INVALID_PRODUCT;
-        $existingLine = Line::findOneBy(['idCommand' => $line->idCommand, 'idProduct' => $line->idProduct])?: null;
+        if($addingLine)
+            $existingLine = Line::findOneBy(['idCommand' => $line->idCommand, 'idProduct' => $line->idProduct])?: null;
+        else {
+            $line->idLine = filter_var($inputValues['idLine'], FILTER_VALIDATE_INT) ?: null;
+            $existingLine = line::findOneBy(['idLine' => $line->idLine]);
+        }
         $line->getProduct();
         if($existingLine) $line = $existingLine;
-        $line->quantity = $line->quantity + filter_var($inputValues['quantity'], FILTER_VALIDATE_INT) ?: null;
+        $line->quantity = ($addingLine? $line->quantity : 0) + filter_var($inputValues['quantity'], FILTER_VALIDATE_INT) ?: null;
+        $product = $line->getProduct();
+        if($line->quantity > $product->stock)
+            $line->quantity = $product->stock;
         if(!$line->quantity || !$line->isValidQuantity())
             $errors[] = LineControllerException::INVALID_QUANTITY;
         $line->price = filter_var($inputValues['price'], FILTER_VALIDATE_FLOAT) ?: null;
@@ -115,7 +144,7 @@ final class LineController {
             $line->persist();
             return $line;
         }
-        return $errors;
+        return null;
     }
 
 }

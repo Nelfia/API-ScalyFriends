@@ -213,7 +213,7 @@ class User extends Entity implements LoggableUser {
                 return $this->commands = Command::findAllBy(['status' => $status ], ['orderDate' => 'DESC'])?:[];
         }
         if($this->isGranted("ROLE_USER")){
-            // Si aucun status passé en paramètre, retourne TOUTES les commandes.
+            // Si aucun status passé en paramètre, retourne TOUTES ses commandes.
             if(!$status)
                 return $this->commands = Command::findAllBy(['idCustomer' => $this->idUser], ['orderDate' => 'DESC']);
             else
@@ -262,6 +262,7 @@ class User extends Entity implements LoggableUser {
     public function getCart(): ?Command {
         if($this->cart === null) {
             $this->cart = Command::findOneBy(['idCustomer' => $this->idUser, 'status' => 'cart']);
+            if($this->cart)
             $this->cart?->getLines();
         }
         return $this->cart;

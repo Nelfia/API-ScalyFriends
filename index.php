@@ -37,7 +37,7 @@ DBAL::init(
 //Access-Control-Allow-Origin: http://www.monsite.fr
 header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: PUT, GET, POST, DELETE");
-header("Access-Control-Allow-Headers: access-control-allow-origin, authorization, content-type");
+header("Access-Control-Allow-Headers: access-control-allow-origin, authorization, content-type, credentials");
 
 // Routage de la requête du client (à faire EN DERNIER).
 Router::route();

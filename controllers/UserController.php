@@ -38,7 +38,7 @@ final class UserController {
         $success = $user?->isGranted("ROLE_ADMIN") ?: false;
         // Si pas de user logué ou role non autorisé
         if(!$user || !$success){
-            $message = "Vous n'êtes pas autorisé à accéder à cette page.";
+            $message = UserControllerException::ACCESS_DENIED;
             $results['jwt_token'] = JWT::isValidJWT();
         } else {
             $message = "Voici la liste des users.";
@@ -63,28 +63,20 @@ final class UserController {
 		$idUser = (int)$assocParams['id'];
 		// Récupérer l'instance du User logué.
 		$loggedUser = User::getLoggedUser();
-		// Initialiser le tableau des résultats de la réponse.
-		$results = array();
-		$results['jwt_token'] = JWT::isValidJWT();
 		// Si user non logué ou token invalide.
 		if(!$loggedUser){
-			Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.", $results);
+			Router::json(json_encode(UserControllerException::NO_LOGGED_USER));
 		}
 		// Vérifier les droits d'accès du user.
-		$success = (($loggedUser?->isGranted("ROLE_USER") && ($loggedUser?->idUser === $idUser))||$loggedUser?->isGranted("ROLE_ADMIN"));
-		// Si l'accès est refusé.
-		if(!$success){
-			$message = "Vous n'êtes pas autorisé à accéder à cette page.";
-		} else {
-			$message = "Voici les information du user.";
-			$user = User::findOneBy(['idUser' => $idUser]);
-			// Par mesure de sécurité, retirer le role et le mdp du user dans la réponse.
-			unset($user->pwd);
-			unset($user->roles);
-			$results['user'] = $user;
-		};
+		if ((!$loggedUser?->isGranted("ROLE_USER") || ($loggedUser?->idUser !== $idUser))|| !$loggedUser?->isGranted("ROLE_ADMIN"))
+			Router::json(json_encode(UserControllerException::ACCESS_DENIED));
+		else {
+            $user = User::findOneBy(['idUser' => $idUser]);
+            // Par mesure de sécurité, retirer le role et le mdp du user dans la réponse.
+            $user = $user->onlyUser();
+        }
 		// Envoyer la réponse au client.
-		Router::responseJson($success, $message, $results);
+		Router::json(json_encode($user));
     }
     /**
 	 * Création d'un nouveau compte user.
@@ -96,12 +88,12 @@ final class UserController {
      * @return void
      */
     public static function create() : void {
-		// Si user logué, destruction du token.
-		if(User::getLoggedUser()) JWT::destroy();
-		// Initialiser le tableau de résultats et le tableau d'erreurs.
-		$results = [];
+		// Si user logué, le déloguer.
+		if(User::getLoggedUser()) self::logout();
+        // Récupérer les données envoyées par le client.
+        $data = CfgApp::getInputData();
 		// Récupérer et valider les données du user.
-		$processing = UserController::processingUserCreation();
+		$processing = self::processingUserCreation($data);
 		$errors = $processing['errors'];
 		$user = $processing['user'];
         // Si aucune erreur, persister le user en tenant compte des éventuels doublons d'username ou email
@@ -113,17 +105,20 @@ final class UserController {
 			}
 		}
 		// Remplir la réponse.
-		if($errors){
-			$results['errors'] = $errors;
-			$results['user'] = $user->secureReturnedUser();
-			Router::responseJson(false, "L'utilisateur n'a pas pu être crée.", $results);
-		}
+		if($errors)
+			Router::json(json_encode($errors));
 		// Si toujours aucune erreur.
 		$payload['user_id'] = $user->idUser;
-		$token = JWT::generate([], $payload);
-		$results['jwt_token'] = $token;
-		$results['user'] = $user->secureReturnedUser();
-		Router::responseJson(true, "L'utilisateur a bien été créé et est désormais logué.", $results);
+		$token = JWT::generate([], $payload, 3600);
+        $results['idToken'] = json_encode($token);
+        $results['expires'] = json_encode(JWT::getPayload($token)['exp']);
+        // Créer un nouveau panier au user nouvellement créé.
+        CommandController::createCart(["idUser" => $user->idUser]);
+        $results['cart'] = $user->getCart();
+        $results['idCart'] = $user->getIdCart();
+        $user->onlyUser();
+        $results['user'] = $user;
+		Router::json(json_encode($results));
     }
     /**
      * Met à jour les données d'un User en BD.
@@ -285,24 +280,20 @@ final class UserController {
 	 *
 	 * @return array l'instance du User et le tableau des erreurs.
 	 */
-	private static function processingUserCreation(): array {
+	private static function processingUserCreation(array $data): array {
 		// Initialiser les tableaux d'erreurs et de résultats.
 		$errors = [];
 		$results = [];
 		// Créer un nouveau user.
 		$user = new User();
 		$user->roles = json_encode(["ROLE_USER"]);
-		// Récupérer et valider les données reçues en POST.
-		$user->username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-		if(!$user->username || !$user->isValidUsername())
-			$errors[] = 'Username invalide';
-		$user->email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL) ?: null;
-		if(!$user->email || !$user->isValidEmail())
-			$errors[] = 'Email invalide';
-		$user->pwd = filter_input(INPUT_POST, 'pwd', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-		$pwdConfirm = filter_input(INPUT_POST, 'pwdConfirm', FILTER_SANITIZE_SPECIAL_CHARS);
-		if(!$user->pwd || mb_strlen($user->pwd) < 4 || ($user->pwd !== $pwdConfirm) || mb_strlen($user->pwd) > 255)
-			$errors[] = "Mot de passe invalide.";
+        // Récupérer les données et tenter le login.
+        $user->username = filter_var($_POST['username'] ??$data['username'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
+        if(!$user->username || !$user->isValidUsername())
+            $errors[] = UserControllerException::USERNAME_INVALID;
+        $user->pwd = filter_var($_POST['pwd'] ?? $data['pwd'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
+		if(!$user->pwd || mb_strlen($user->pwd) < 4 || mb_strlen($user->pwd) > 255)
+			$errors[] = UserControllerException::PASSWORD_INVALID;
 		else $user->pwd = password_hash($user->pwd, PASSWORD_DEFAULT);
 		// Remplir la réponse.
 		$results['user'] = $user;

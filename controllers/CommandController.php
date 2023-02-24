@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace controllers;
 
 use cfg\CfgApp;
-use DateTime;
 use entities\Command;
 use entities\Line;
-use peps\core\Router;
-use peps\jwt\JWT;
 use entities\User;
 use Error;
 use Exception;
+use peps\core\Router;
+use peps\jwt\JWT;
 
 /**
  * Classe 100% statique de gestion des commandes.
@@ -30,11 +29,12 @@ final class CommandController {
      * Envoi de la réponse sous forme d'array:
      *      ['nb'] compte le nb de commandes retournées
      *      ['commands'] la liste de commandes
-     * Si erreur, retourne
+     * Si erreur, retourne:
      *      ['error']
      *
      * GET /api/orders
      * GET /api/orders/(cart|open|pending|closed|cancelled)
+     *
      * Accès: ROLE_USER => Reçoit la liste de ses commandes uniquement.
      * Accès: ROLE_ADMIN => Reçoit la liste de toutes les commandes.
      *
@@ -45,8 +45,8 @@ final class CommandController {
         // Vérifier si User logué.
         $user = User::getLoggedUser();
         if(!$user) 
-            Router::json(json_encode("Aucun user connecté"));
-        $status = $assocParams['status']?? null;
+            Router::json(json_encode(UserControllerException::NO_LOGGED_USER));
+        $status = $assocParams['status'] ?? null;
         if($status === "cart")
             Router::json(json_encode($user->getCart()));
         // Récupérer toutes les commandes en fonction du user logué et du status demandé.
@@ -65,7 +65,7 @@ final class CommandController {
     /**
      * Affiche le détail d'une commande.
      * 
-     * GET /api/orders/{id}
+     * GET /api/orders/{idCommand}
      * Accès: ROLE_USER | ROLE_ADMIN.
      *
      * @param array $assocParams Tableau associatif des paramètres.
@@ -75,9 +75,9 @@ final class CommandController {
         // Vérifier si user logué.
         $user = User::getLoggedUser();
         if(!$user)
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
+            Router::json(UserControllerException::NO_LOGGED_USER);
         // Récupérer l'id de la commande passé en paramètre.
-        $idCommand = (int)$assocParams['id'];
+        $idCommand = (int)$assocParams['idCommand'];
         // Récupérer la commande.
         $command = Command::findOneBy(['idCommand' => $idCommand]);
         $command?->getLines();
@@ -87,35 +87,42 @@ final class CommandController {
         }
     }
     /**
-     * Contrôle les données reçues en POST & créé une nouvelle commande en DB.
-     * Toute nouvelle commande commence au status de panier.
+     * Contrôle les données reçues en POST & créé/maj commande en DB.
+     * Toute nouvelle commande a un status de 'cart'.
      * Un même user ne DEVRAIT avoir qu'un seul panier.
+     *
+     * Renvoie le panier au client.
      *
      * POST /api/orders
      * Accès: PUBLIC (hors ADMIN).
      * 
      * @return void
      */
-    public static function create() : void {
+    public static function update() : void {
         // Vérifier si user connecté.
         $user = User::getLoggedUser();
         // Si user connecté et que ce n'est pas un ADMIN.
         if($user?->isGranted('ROLE_ADMIN'))
-            Router::json(json_encode(0));
-        // Vérifier que le user n'a pas déjà un panier (max. 1 par user)
-        if($user?->getCart()) {
-            $cart = $user->getCart();
-            Router::json(json_encode($cart));
+            Router::json(json_encode(UserControllerException::ACCESS_DENIED));
+        // Si l'utilisateur a déjà un panier, le récupérer.
+        $cart = $user->getCart();
+        if(!$cart)
+            $cart = CommandController::createCart((array)$user);
+        //Récupérer et mettre à jour les lignes du panier reçues en POST.
+        $_POST = CfgApp::getInputData();
+        $cartLS = $_POST['cart'];
+        $lines = $cartLS->lines;
+        if($lines){
+            foreach ($lines as $line) {
+                $line->idCommand = $cart->idCommand;
+                //Pour chaque ligne, la mettre à jour en DB.
+                LineController::processingDataLine($line, true);
+            }
         }
-        // Créer et remplir la nouvelle commande.
-        $command = new Command();
-        $command->status = 'cart';
-        $command->idCustomer = $user->idUser ?? null;
-        $command->lastChange = date('Y-m-d H:i:s');
-        // Persister la commande en BD.
-        $command->persist();
-        Router::json(json_encode($command));
+        $cart->getLines();
+        Router::json(json_encode($cart));
     }
+
     /**
      * Modifie le status d'une commande existante.
      *
@@ -123,21 +130,19 @@ final class CommandController {
      * Accès: PUBLIC => Passage de panier à commande à traiter
      *  & créer le user en DB (ROLE_PUBLIC).
      * Accès: ADMIN => Changements de status de la commande.
-     * 
+     *
      * @param array $assocParams Tableau associatif des paramètres.
      * @return void
      */
-    public static function update(array $assocParams) : void {
+    public static function changeStatus(array $assocParams) : void {
         // Récupérer l'id de la commande.
         $idCommand = (int)$assocParams['id'] ?? null;
         // Vérifier si user connecté.
         $user = User::getLoggedUser();
-        //Initialiser le tableau des erreurs.
-        $errors = [];
         // Récupérer la commande initiale grâce à l'id passé en paramètre.
         $targetCommand = Command::findOneBy(['idCommand' => $idCommand]);
         // Si user connecté, vérifier ses droits d'accès.
-        if($user?->isGranted('ROLE_ADMIN') && $user->idUser !== $targetCommand->idCustomer)
+        if(!$user?->isGranted('ROLE_ADMIN') || $user->idUser !== $targetCommand->idCustomer)
             Router::json(json_encode(UserControllerException::ACCESS_DENIED));
         // Récupérer les données reçues en PUT.
         $_PUT = CfgApp::getInputData();
@@ -150,57 +155,10 @@ final class CommandController {
             $newLine->idLine = $newLine->idLine === 0 ? null : $newLine->idLine;
 
         }
-
-            $errors[] = "Commune ou ville trop longue.";
-        //TODO: Réécrire fonction updateCart
+        //TODO: Réécrire fonction changeStatus
         // Persister ligne à ligne
         
     }
-    /**
-     * Supprime une commande status "cart"
-     * n'ayant pas d'idCustomer -> PUBLIC non USER
-     * et dont lastChange + $timeout < maintenant.
-     *
-     * DELETE /orders
-     * Accès: ADMIN.
-     * 
-     * @return void
-     */
-    public static function delete() : void {
-        // Vérifier si User logué.
-        $user = User::getLoggedUser();
-        if(!$user) 
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
-        // Vérifier si a les droits d'accès.
-        if(!$user->isGranted("ROLE_ADMIN"))
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
-        // Récupérer UNIQUEMENT les commandes dont le status est panier.
-        $commands = Command::findAllBy(['status' => 'cart'], []);
-        $now = new DateTime();
-        $nb = 0;
-        foreach($commands as $command) {
-            // Si le panier n'est pas rattachée à un user.
-            if(!$command->idCustomer){
-                $lastChange = new DateTime($command->lastChange);
-                $interval = date_diff($lastChange, $now);
-                $interval = $interval->format('%a'); // exprimée en jour entier (string)
-                if((int)$interval > 2 ){
-                    $command->remove();
-                    $nb++;
-                }
-            }
-        }
-        $results = [];
-        $results['nb'] = $nb;
-        $results['jwt_token'] = JWT::isValidJWT();
-        Router::responseJson(true, "Les paniers obsolètes ont bien été supprimés.", $results);
-    }
-    /**
-     * Récupère et valide les données de mise à jour d'un user reçues en PUT.
-     *
-     * @param Command $command
-	 * @return array l'instance du User et le tableau des erreurs.
-     */
     private static function processingUserOnCommand() : array {
         // Récupérer les données reçues en PUT et les mettre dans la "Super Globale" $_PUT.
 		$_PUT = CfgApp::getInputData();
@@ -289,5 +247,27 @@ final class CommandController {
         $results['customer'] = $user;
         $results['command'] = $command;
         Router::responseJson($success, $message, $results);
+    }
+
+    /**
+     * Retourne le panier de l'utilisateur.
+     * Si déjà existant, le retourne, sinon le créé.
+     *
+     * GET /api/createCart
+     *
+     * @param User $user
+     * @return Command
+     */
+    public static function createCart(array $assocParams) : Command {
+        $user = User::findOneBy(['idUser' => (int)$assocParams['idUser']]);
+        $cart = $user->getCart() ?? null;
+        if($cart !== null)
+            return $cart;
+        $cart = new Command();
+        $cart->idCustomer = $user->idUser;
+        $cart->status = 'cart';
+        $cart->lastChange = date('Y-m-d H:i:s');
+        $cart->persist();
+        return $user->getCart();
     }
 }

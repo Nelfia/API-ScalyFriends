@@ -12,7 +12,6 @@ use Error;
  *      render(): rendre une vue.
  *      text() :envoyer du text brut (text/plain)
  *      json() : envoyer du JSON (application/json)
- *      responseJSON() : envoyer une réponse en JSON (application/json)
  *      download(): envoyer un fichier en flux binaire
  *      redirect(): rediriger côté client
  * Toutes ces méthodes ARRETENT l'éxécution.
