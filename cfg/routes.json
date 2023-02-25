@@ -31,6 +31,11 @@
         "method" : "ProductController.create"
     },
     {
+        "verb" : "POST",
+        "uri" : "/api/image-upload",
+        "method" : "ProductController.imageUpload"
+    },
+    {
         "verb" : "PUT",
         "uri" : "/api/products/([1-9][0-9]*)",
         "method" : "ProductController.update",
@@ -64,31 +69,36 @@
         "uri" : "/api/orders/([1-9][0-9]*)",
         "method" : "CommandController.show",
         "params" : [
-            "id"
+            "idCommand"
         ]
+    },
+    {
+        "verb" : "GET",
+        "uri" : "/api/createCart",
+        "method" : "CommandController.show"
     },
     {
         "verb" : "POST",
         "uri" : "/api/orders",
-        "method" : "CommandController.create"
+        "method" : "CommandController.update"
+    },
+    {
+        "verb" : "POST",
+        "uri" : "/api/cart",
+        "method" : "CommandController.updateCart"
     },
     {
         "verb" : "PUT",
         "uri" : "/api/orders/([1-9][0-9]*)",
-        "method" : "CommandController.update",
+        "method" : "CommandController.changeStatus",
         "params" : [
-            "id"
+            "idCommand"
         ]
     },
     {
         "verb" : "DELETE",
         "uri" : "/api/orders",
         "method" : "CommandController.delete"
-    },
-    {
-        "verb" : "GET",
-        "uri" : "/api/users",
-        "method" : "UserController.list"
     },
     {
         "verb" : "GET",
@@ -116,7 +126,7 @@
         "uri" : "/api/users/([1-9][0-9]*)",
         "method" : "UserController.delete",
         "params" : [
-            "id"
+            "idUser"
         ]
     },
     {
@@ -130,93 +140,25 @@
         "method" : "UserController.logout"
     },
     {
-        "verb" : "GET",
-        "uri" : "/api/favorites",
-        "method" : "FavoriteController.list"
-    },
-    {
-        "verb" : "GET",
-        "uri" : "/api/favorites/([1-9][0-9]*)",
-        "method" : "FavoriteController.show",
-        "params" : [
-            "id"
-        ]
-    },
-    {
-        "verb" : "POST",
-        "uri" : "/api/favorites",
-        "method" : "FavoriteController.create"
-    },
-    {
-        "verb" : "PUT",
-        "uri" : "/api/favorites/([1-9][0-9]*)",
-        "method" : "FavoriteController.update",
-        "params" : [
-            "id"
-        ]
-    },
-    {
-        "verb" : "DELETE",
-        "uri" : "/api/favorites/([1-9][0-9]*)",
-        "method" : "FavoriteController.delete",
-        "params" : [
-            "id"
-        ]
-    },
-    {
-        "verb" : "GET",
-        "uri" : "/api/recommendations",
-        "method" : "RecommendationController.list"
-    },
-    {
-        "verb" : "GET",
-        "uri" : "/api/recommendations/([1-9][0-9]*)",
-        "method" : "RecommendationController.show",
-        "params" : [
-            "id"
-        ]
-    },
-    {
-        "verb" : "POST",
-        "uri" : "/api/recommendations",
-        "method" : "RecommendationController.create"
-    },
-    {
-        "verb" : "PUT",
-        "uri" : "/api/recommendations/([1-9][0-9]*)",
-        "method" : "RecommendationController.update",
-        "params" : [
-            "id"
-        ]
-    },
-    {
-        "verb" : "DELETE",
-        "uri" : "/api/recommendations/([1-9][0-9]*)",
-        "method" : "RecommendationController.delete",
-        "params" : [
-            "id"
-        ]
-    },
-    {
         "verb" : "POST",
         "uri" : "/api/orders/([1-9][0-9]*)/lines",
-        "method" : "LineController.create",
+        "method" : "LineController.addLine",
         "params" : [
-            "id"
+            "idCommand"
         ]
     },
     {
         "verb" : "PUT",
         "uri" : "/api/orders/([1-9][0-9]*)/lines",
-        "method" : "LineController.update",
+        "method" : "LineController.updateLine",
         "params" : [
-            "id"
+            "idCommand"
         ]
     },
     {
         "verb" : "DELETE",
         "uri" : "/api/orders/([1-9][0-9]*)/lines/([1-9][0-9]*)",
-        "method" : "LineController.delete",
+        "method" : "LineController.removeLine",
         "params" : [
             "idCommand",
             "idLine"

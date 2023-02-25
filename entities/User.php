@@ -213,7 +213,7 @@ class User extends Entity implements LoggableUser {
                 return $this->commands = Command::findAllBy(['status' => $status ], ['orderDate' => 'DESC'])?:[];
         }
         if($this->isGranted("ROLE_USER")){
-            // Si aucun status passé en paramètre, retourne TOUTES les commandes.
+            // Si aucun status passé en paramètre, retourne TOUTES ses commandes.
             if(!$status)
                 return $this->commands = Command::findAllBy(['idCustomer' => $this->idUser], ['orderDate' => 'DESC']);
             else
@@ -250,7 +250,7 @@ class User extends Entity implements LoggableUser {
     public function getIdCart(): ?int {
         if ($this->idCart === null) {
             $cart = Command::findOneBy(['idCustomer' => $this->idUser,'status' => "cart"], []);
-            $this->idCart = $cart->idCommand;
+            $this->idCart = $cart->idCommand ?? null;
         }
         return $this->idCart;
     }
@@ -261,8 +261,9 @@ class User extends Entity implements LoggableUser {
      */
     public function getCart(): ?Command {
         if($this->cart === null) {
-            $this->cart = Command::findOneBy(['idCustomer' => $this->idUser]);
-            $this->cart->getLines();
+            $this->cart = Command::findOneBy(['idCustomer' => $this->idUser, 'status' => 'cart']);
+            if($this->cart)
+            $this->cart?->getLines();
         }
         return $this->cart;
     }
@@ -272,9 +273,14 @@ class User extends Entity implements LoggableUser {
      *
      * @return User
      */
-    public function secureReturnedUser() : User {
+    public function onlyUser() : User {
         unset($this->pwd);
         unset($this->roles);
+        unset($this->cart);
+        unset($this->idCart);
+        unset($this->commands);
+        unset($this->favorites);
+        unset($this->products);
         return $this;
     }
     /**

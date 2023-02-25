@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace controllers;
 
+use cfg\CfgApp;
 use entities\Command;
 use entities\Line;
-use peps\core\Router;
-use peps\jwt\JWT;
-use entities\Product;
 use entities\User;
-use Exception;
+use peps\core\Router;
 
 /**
- * Classe 100% statique de gestion des produits.
+ * Classe 100% statique de gestion des lignes.
  */
 final class LineController {
     /**
@@ -21,95 +19,132 @@ final class LineController {
      */
     private function __construct() {}
 
+
     /**
-     * Contrôle les données reçues & insère une nouvelle ligne en DB.
-     * Se fait uniquement lorsque la commande a un status 'cart'.
+     * Contrôle l'accès et les données reçues & insère une nouvelle ligne en DB.
+     * Possible UNIQUEMENT lorsque la commande a un status 'cart'.
+     *
      * Si le produit a déjà été inséré dans une des lignes de la commande,
      * pas de création de ligne -> ajout du/des produits à la ligne existante si
-     * le stock le permet.
+     * le stock le permet (sinon stock max).
      *
-     * POST /api/orders/{id}/lines
-     * Accès: PUBLIC.
+     * Envoie du panier au client.
+     *
+     * POST /api/orders/{idCommand}/lines
+     * Accès: USER.
      *
      * @param array $assocParams
      * @return void
      */
-    public static function create(array $assocParams) : void {
-        // Initialiser le tableau des erreurs et des résultats.
-        $errors = $results = [];
-        // Ajouter le token dans les résultats.
-        $results['jwt_token'] = JWT::isValidJWT();
-        // Récupérer le user si logué.
-        $user = User::getLoggedUser();
+    public static function addLine(array $assocParams) : void {
         // Créer une nouvelle ligne.
         $line = new Line();
-        $line->idCommand = (int)$assocParams['id'];
-        // Récupérer la commande.
-        $command = $line->getCommand();
-        $nbBeforeAdd = count($command->getLines());
-        // Vérifier les droits d'accès du User.
-        if($user?->isGranted('ROLE_ADMIN') || $user?->idUser !== $command?->idCustomer)
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page", $results);
-        if(!$command)
-            Router::responseJson(false, "Aucune commande trouvée.", $results);
-        if($command->status !== 'cart')
-            Router::responseJson(false, 'Vous ne pouvez plus modifier cette commande.', $results );
-        // Récupérer et valider les données
-        $line->idProduct = filter_input(INPUT_POST, 'idProduct', FILTER_VALIDATE_INT) ?: null;
-        if(!$line->idProduct || $line->idProduct <= 0)
-            $errors[] = "Produit invalide.";
-        $existingLine = Line::findOneBy(['idCommand' => $line->idCommand, 'idProduct' => $line->idProduct])?: null;
-        if($existingLine) $line = $existingLine;
-        $line->quantity = $line->quantity + filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT) ?: null;
-        if(!$line->quantity || !$line->isValidQuantity())
-            $errors[] = "Quantité invalide.";
-        $line->price = filter_input(INPUT_POST, 'price', FILTER_VALIDATE_FLOAT) ?: null;
-        if(!$line->price || !$line->isValidPrice())
-            $errors[] = "Prix invalide.";
-        if(!$errors) {
-            // Si aucune erreur, persister.
-            $line->persist();
-            // Remplir la réponse à envoyer au client.
-            $success = true;
-            $message = "Nouvelle ligne créée avec succès";
-            $results['nbLinesBeforeNewAdded'] = $nbBeforeAdd;
-        } else {
-            // Remplir la réponse à envoyer au client.
-            $success = false;
-            $message = "Impossible de créer la ligne !";
-            $results['errors'] = $errors;            
-        }
-        $results['newLine'] = $line;
-        // Envoyer la réponse au client.
-        Router::responseJson($success, $message, $results);
+        $line->idCommand = (int)$assocParams['idCommand'];
+        $line = self::processingDataLine($line, true);
+        $panier = $line->getCommand();
+        $panier->getLines();
+        $panier->lastChange = date('Y-m-d H:i:s');
+        $panier->persist();
+        Router::json(json_encode($panier));
     }
-    /**
-     * Modifie les données d'une ligne existante.
-     * Modifie la quantité de produits insérés dans une ligne.
-     *
-     * PUT /api/orders/([1-9][0-9]*)/lines
-     * Accès: ADMIN.
-     * 
-     * @param array $assocParams Tableau associatif des paramètres.
-     * @return void
-     */
-    public static function update(array $assocParams) : void {
-        // Initialiser le tableau des erreurs et des résultats.
-        $errors = $results = [];
-        // Ajouter le token dans les résultats.
-        $results['jwt_token'] = JWT::isValidJWT();
-        // Récupérer l'id de la commande et celui du produit de la ligne à modifier.
 
-    }
     /**
      * Supprime une ligne de la commande.
+     * Envoie le nouveau panier au client.
      *
      * DELETE /api/orders/{idCommand}/lines/{idLine}
-     * Accès: ADMIN.
+     * Accès: USER.
      * 
      * @param array $assocParams Tableau des paramètres.
      * @return void
      */
-    public static function delete(array $assocParams) : void {
+    public static function removeLine(array $assocParams) : void {
+        // Vérifier si commande existante et si status "cart"
+        $line = Line::findOneBy(['idLine' => (int)$assocParams['idLine']]);
+        $command = $line->getCommand();
+        if(!$command->isCart())
+            Router::json(CommandControllerException::NO_CHANGE_ALLOWED);
+        // Vérifier si user logué est autorisé à modifier le panier
+        $user = User::getLoggedUser();
+        if(!$user || !$user->isGranted("ROLE_USER") || ($user->idUser !== $command->idCustomer))
+            Router::json(UserControllerException::ACCESS_DENIED);
+        $line->remove();
+        $newCart = Command::findOneBy(['idCommand' => $command->idCommand]);
+        $newCart->getLines();
+        Router::json(json_encode($newCart));
     }
+
+    /**
+     * Contrôle l'accès et les données reçues & modifie une ligne en DB.
+     * Possible UNIQUEMENT lorsque la commande a un status 'cart'.
+     *
+     * Envoie du panier au client.
+     *
+     * PUT /api/orders/([1-9][0-9]*)/lines
+     * Accès: USER.
+     */
+    public static function updateLine(array $assocParams) : void {
+        // Créer une nouvelle ligne.
+        $line = new Line();
+        $line->idCommand = (int)$assocParams['idCommand'];
+        $line = self::processingDataLine($line, false);
+        $panier = $line->getCommand();
+        $panier->getLines();
+        $panier->lastChange = date('Y-m-d H:i:s');
+        $panier->persist();
+        Router::json(json_encode($panier));
+    }
+
+    /**
+     * Vérifie les droits d'accès et vérifie les données reçues par le client.
+     * Si pas d'erreurs: persiste et retourne la ligne.
+     * Sinon, retourne le tableau des erreurs.
+     * @param Line $line
+     * @param bool $addingLine
+     * @return Line|array
+     */
+    static function processingDataLine(Line $line, bool $addingLine): ?Line {
+        // Récupérer le user si logué.
+        $user = User::getLoggedUser();
+        // Récupérer la commande.
+        $panier = $line->getCommand();
+        // Vérifier les droits d'accès du User.
+        if(!$user || !$user->isGranted('ROLE_USER') || $user->idUser != $panier?->idCustomer)
+            Router::json(UserControllerException::ACCESS_DENIED);
+        if(!$panier)
+            Router::json(CommandControllerException::INVALID_ID);
+        if($panier->status !== 'cart')
+            Router::json(CommandControllerException::NO_CHANGE_ALLOWED);
+        //Initialiser le tableau des erreurs.
+        $errors = [];
+        // Récupérer et valider les données
+        $inputValues = CfgApp::getInputData();
+        $line->idProduct = filter_var((int)$inputValues['idProduct'], FILTER_VALIDATE_INT) ?: null;
+        if(!$line->idProduct || $line->idProduct <= 0)
+            $errors[] = LineControllerException::INVALID_PRODUCT;
+        if($addingLine)
+            $existingLine = Line::findOneBy(['idCommand' => $line->idCommand, 'idProduct' => $line->idProduct])?: null;
+        else {
+            $line->idLine = filter_var($inputValues['idLine'], FILTER_VALIDATE_INT) ?: null;
+            $existingLine = line::findOneBy(['idLine' => $line->idLine]);
+        }
+        $line->getProduct();
+        if($existingLine) $line = $existingLine;
+        $line->quantity = ($addingLine? $line->quantity : 0) + filter_var($inputValues['quantity'], FILTER_VALIDATE_INT) ?: null;
+        $product = $line->getProduct();
+        if($line->quantity > $product->stock)
+            $line->quantity = $product->stock;
+        if(!$line->quantity || !$line->isValidQuantity())
+            $errors[] = LineControllerException::INVALID_QUANTITY;
+        $line->price = filter_var($inputValues['price'], FILTER_VALIDATE_FLOAT) ?: null;
+        if(!$line->price || !$line->isValidPrice())
+            $errors[] = ProductControllerException::INVALID_PRICE;
+        if(!$errors) {
+            // Si aucune erreur, persister.
+            $line->persist();
+            return $line;
+        }
+        return null;
+    }
+
 }

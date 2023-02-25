@@ -7,6 +7,9 @@ RewriteRule ^.*$ index.php
 # Ajout de la superGlobale $_PUT
 RewriteCond %{REQUEST_METHOD} ^PUT$
 RewriteRule .* - [E=HTTP_X_HTTP_METHOD_OVERRIDE:PUT]
+# Ajout de la superGlobale $_PUT
+RewriteCond %{REQUEST_METHOD} ^DELETE$
+RewriteRule .* - [E=HTTP_X_HTTP_METHOD_OVERRIDE:DELETE]
 
 ############################
 # Mémo expression régulières 

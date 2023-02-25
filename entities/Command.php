@@ -72,14 +72,13 @@ class Command extends Entity  {
     }
 
     /**
-     * Retourne le tableau des lignes de la commande en lazy loading.
+     * Retourne le tableau des lignes de la commande.
      *
      * @return array|null Tableau des lignes de la commande ou null si non trouvées.
      */
     public function getLines(): ?array {
-        if ($this->lines === null) {
-            $this->lines = Line::findAllBy(['idCommand' => $this->idCommand], []);
-        }
+        $this->lines = Line::findAllBy(['idCommand' => $this->idCommand], []);
+        foreach (($this->lines) as $line) $line->getProduct();
         return $this->lines;
     }
 

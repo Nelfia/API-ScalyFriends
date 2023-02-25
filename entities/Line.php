@@ -51,7 +51,7 @@ class Line extends Entity
      * Instance de la commande dans laquelle est la ligne.
      * Chargement en lazy loading.
      *
-     * @var Order|null
+     * @var Command|null
      */
     protected ?Command $command = null;
     /**
@@ -75,7 +75,7 @@ class Line extends Entity
     /**
      * Retourne l'instance de la commande dans laquelle est la ligne en lazy loading.
      *
-     * @return Command Instance de la commande dans laquelle est la ligne.
+     * @return Command|null Instance de la commande dans laquelle est la ligne.
      */
     public function getCommand(): ?Command
     {
@@ -88,12 +88,12 @@ class Line extends Entity
     /**
      * Retourne l'instance du Produit inséré dans la ligne en lazy loading.
      *
-     * @return Product Instance du Produit inséré dans la ligne.
+     * @return Product|null Instance du Produit inséré dans la ligne.
      */
     public function getProduct(): ?Product
     {
         if ($this->product === null) {
-            $this->product = Product::findOneBy(['idProduct' => $this->idProduct], []);
+            $this->product = Product::findOneBy(['idProduct' => $this->idProduct]);
         }
         return $this->product;
     }
