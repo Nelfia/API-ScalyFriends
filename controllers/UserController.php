@@ -228,8 +228,6 @@ final class UserController {
 		if(User::getLoggedUser()) JWT::destroy();
         // Créer un user
         $user = new User();
-        // Initialiser le tableau des erreurs
-        $errors = [];
         // Initialiser le tableau de la réponse JSON.
         $results = array();
         // Récupérer les données envoyées par le client.
@@ -250,7 +248,7 @@ final class UserController {
             $user->onlyUser();
             $results['user'] = $user;
         } else
-            $results['errors'] = $errors;
+            $results['errors'] = UserControllerException::ERROR_LOGIN;
 		// Par mesure de sécurité, retirer le role et le mdp du user dans la réponse.
 
         Router::json(json_encode($results));

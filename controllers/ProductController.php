@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace controllers;
 
 use cfg\CfgApp;
+use peps\core\Cfg;
 use peps\core\Router;
 use peps\jwt\JWT;
 use entities\Product;
@@ -23,11 +24,12 @@ final class ProductController {
 
     /**
      * Envoie liste de tous les produits.
-     * 
+     *
      * GET /api/products
      * GET /api/products/(animals|materials|feeding)
      * Accès: PUBLIC.
      *
+     * @param array $assocParams
      * @return void
      */
     public static function list(array $assocParams) : void {
@@ -37,11 +39,11 @@ final class ProductController {
         }
         $filters['isVisible'] = true;
         // Récupérer tous les produits non archivés dans l'ordre alphabétique.
-        $products = Product::findAllBy($filters, []);
+        $products = Product::findAllBy($filters);
         if(!$products) {
             Router::json(json_encode("erreur: aucun résultat."));
         }
-        Router::json((json_encode($products)), true);
+        Router::json((json_encode($products)));
     }
     /**
      * Affiche le détail d'un produit.
@@ -75,19 +77,27 @@ final class ProductController {
         // Vérifier si token et si valide.
         $token = JWT::isValidJWT();
         if(!$token) 
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
+            Router::json(UserControllerException::NO_LOGGED_USER);
         // Vérifier les droits d'accès du user.
         $user = User::getLoggedUser();
         if(!$user->isGranted("ROLE_ADMIN"))
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
+            Router::json(json_encode(UserControllerException::ACCESS_DENIED));
         // Initialiser le tableau des résultats.
         $results = [];
         // Ajouter le token.
         $results['jwt_token'] = $token;
-        // Créer un produit.
-        $product = new Product();
         // Initialiser le tableau des erreurs
         $errors = [];
+        // Créer un produit.
+        $product = new Product();
+        //Récupérer les données reçues du client.
+        $_POST = CfgApp::getInputData();
+        $imageSrc = $_POST['imageSrc'];
+        $fileName = self::createImage($imageSrc);
+        $product->img = '/assets/img/' . $fileName;
+        if(!$product->img)
+            $errors[] = ProductControllerException::INVALID_IMG;
+        // TODO: modifier la vérification des variables reçues en POST + refacto?
         // Récupérer et valider les données
         $product->category = filter_input(INPUT_POST, 'category', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if(!$product->category || mb_strlen($product->category) > 50)
@@ -101,9 +111,7 @@ final class ProductController {
         $product->description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if(!$product->description)
             $errors[] = ProductControllerException::INVALID_DESCRIPTION;
-        $product->img = "/assets/img/" . filter_input(INPUT_POST, 'description', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->img)
-            $errors[] = ProductControllerException::INVALID_IMG;
+
         $product->price = filter_input(INPUT_POST, 'price', FILTER_VALIDATE_FLOAT) ?: null;
         if(!$product->price || $product->price <= 0 || $product->price > 10000)
             $errors[] = ProductControllerException::INVALID_PRICE;
@@ -112,7 +120,7 @@ final class ProductController {
             $errors[] = ProductControllerException::INVALID_STOCK;
         $product->gender = filter_input(INPUT_POST, 'gender', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if($product->gender) {
-            if($product->gender !== "f" || $product->gender !== "m" || mb_strlen($product->gender) > 1)
+            if($product->gender !== "f" || mb_strlen($product->gender) > 1)
                 $errors[] = ProductControllerException::INVALID_GENDER;
         }
         $product->species = filter_input(INPUT_POST, 'species', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
@@ -187,7 +195,8 @@ final class ProductController {
      * @return void
      */
     public static function imageUpload() : void {
-        self::createImage(CfgApp::getInputData()['image']);
+        $fileName = self::createImage(CfgApp::getInputData()['image']);
+        Router::json(json_encode($fileName));
     }
     /**
      * Modifie les données d'un produit existant.
@@ -314,28 +323,24 @@ final class ProductController {
     }
 
     /**
-     *
-     * @return void
-     */
-    public static function addtoCart() : void {
-        // Vérifier si idPanier reçu.
-    }
-
-    /**
      * Convertir et enregistrer une image base64 dans le dossier assets/img/.
      *
      * @param string $img
-     * @return void
+     * @return string
      */
-    private static function createImage(string $img): void
+    private static function createImage(string $img): string
     {
         $path = "C:/Users/qdeca/OneDrive/Bureau/projets/ap_formation/DP/sf-api/assets/img/";
         $image_parts = explode(";base64,", $img);
         $image_type_aux = explode("image/", $image_parts[0]);
         $image_type = $image_type_aux[1];
+        if($image_type !== 'png' && $image_type !== 'jpg' && $image_type !== 'jpeg')
+            Router::json(ProductControllerException::INVALID_IMG);
         $image_en_base64 = base64_decode($image_parts[1]);
-        $file = $path . uniqid() . '.' . $image_type;
+        $fileName = uniqid() . '.' . $image_type;
+        $file = $path . $fileName;
 
         file_put_contents($file, $image_en_base64);
+        return $fileName;
     }
 }

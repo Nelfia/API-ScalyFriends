@@ -255,7 +255,7 @@ final class CommandController {
      *
      * GET /api/createCart
      *
-     * @param User $user
+     * @param array $assocParams
      * @return Command
      */
     public static function createCart(array $assocParams) : Command {
