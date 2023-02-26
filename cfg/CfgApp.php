@@ -38,14 +38,4 @@ class CfgApp extends Cfg {
         // Devise.
         self::register('appCurrency', 'EUR');
     }
-
-    /**
-     * Récupère les données reçues du client.
-     * @return array Données reçues par le formulaire du client.
-     */
-    public static function getInputData() : array {
-        $inputs = json_decode(json_encode(file_get_contents("php://input")));
-        return (array)json_decode($inputs);
-    }
-
 }

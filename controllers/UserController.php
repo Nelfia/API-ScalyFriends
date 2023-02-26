@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 namespace controllers;
 
-use cfg\CfgApp;
+use classes\Utils;
 use entities\User;
 use Error;
 use Exception;
@@ -91,7 +91,7 @@ final class UserController {
 		// Si user logué, le déloguer.
 		if(User::getLoggedUser()) self::logout();
         // Récupérer les données envoyées par le client.
-        $data = CfgApp::getInputData();
+        $data = Utils::getInputData();
 		// Récupérer et valider les données du user.
 		$processing = self::processingUserCreation($data);
 		$errors = $processing['errors'];
@@ -231,7 +231,7 @@ final class UserController {
         // Initialiser le tableau de la réponse JSON.
         $results = array();
         // Récupérer les données envoyées par le client.
-        $data = CfgApp::getInputData();
+        $data = Utils::getInputData();
         // Récupérer les données et tenter le login.
         $user->username = filter_var($_POST['username'] ??$data['username'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
         $pwd = filter_var($_POST['pwd'] ??$data['pwd'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;

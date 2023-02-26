@@ -166,7 +166,7 @@ class Product extends Entity  {
         self::$count++;
     }
     /**
-     * Retourne le nombre d'instances de Product créées depuis le dabut.
+     * Retourne le nombre d'instances de Product créées depuis le début.
      *
      * @return integer
      */

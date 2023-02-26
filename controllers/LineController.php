@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace controllers;
 
-use cfg\CfgApp;
+use classes\Utils;
 use entities\Command;
 use entities\Line;
 use entities\User;
@@ -118,7 +118,7 @@ final class LineController {
         //Initialiser le tableau des erreurs.
         $errors = [];
         // Récupérer et valider les données
-        $inputValues = CfgApp::getInputData();
+        $inputValues = Utils::getInputData();
         $line->idProduct = filter_var((int)$inputValues['idProduct'], FILTER_VALIDATE_INT) ?: null;
         if(!$line->idProduct || $line->idProduct <= 0)
             $errors[] = LineControllerException::INVALID_PRODUCT;

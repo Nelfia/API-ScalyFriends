@@ -28,7 +28,7 @@
     {
         "verb" : "POST",
         "uri" : "/api/products",
-        "method" : "ProductController.create"
+        "method" : "ProductController.save"
     },
     {
         "verb" : "POST",

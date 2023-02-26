@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace controllers;
 
-use cfg\CfgApp;
+use classes\Utils;
 use entities\Command;
 use entities\Line;
 use entities\User;
@@ -109,8 +109,8 @@ final class CommandController {
         if(!$cart)
             $cart = CommandController::createCart((array)$user);
         //Récupérer et mettre à jour les lignes du panier reçues en POST.
-        $_POST = CfgApp::getInputData();
-        $cartLS = $_POST['cart'];
+        $input = Utils::getInputData();
+        $cartLS = $input['cart'];
         $lines = $cartLS->lines;
         if($lines){
             foreach ($lines as $line) {
@@ -145,7 +145,7 @@ final class CommandController {
         if(!$user?->isGranted('ROLE_ADMIN') || $user->idUser !== $targetCommand->idCustomer)
             Router::json(json_encode(UserControllerException::ACCESS_DENIED));
         // Récupérer les données reçues en PUT.
-        $_PUT = CfgApp::getInputData();
+        $_PUT = Utils::getInputData();
         // Vérifier les données reçues.
         $newCart = $_PUT['cart'];
         $lines = $newCart->lines;
@@ -161,7 +161,7 @@ final class CommandController {
     }
     private static function processingUserOnCommand() : array {
         // Récupérer les données reçues en PUT et les mettre dans la "Super Globale" $_PUT.
-		$_PUT = CfgApp::getInputData();
+		$_PUT = Utils::getInputData();
         // Initialiser le tableau des erreurs.
         $errors = [];
         // Récupérer le user logué.
