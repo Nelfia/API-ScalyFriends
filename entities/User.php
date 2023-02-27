@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace entities;
 
+use controllers\CommandController;
 use peps\core\Entity;
 use peps\core\Router;
 use peps\jwt\JWT;
@@ -263,7 +264,7 @@ class User extends Entity implements LoggableUser {
         if($this->cart === null) {
             $this->cart = Command::findOneBy(['idCustomer' => $this->idUser, 'status' => 'cart']);
             if($this->cart)
-            $this->cart?->getLines();
+                $this->cart?->getLines();
         }
         return $this->cart;
     }

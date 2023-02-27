@@ -8,7 +8,6 @@ use classes\Utils;
 use entities\Product;
 use entities\User;
 use peps\core\Router;
-use peps\jwt\JWT;
 
 /**
  * Classe 100% statique de gestion des produits.
@@ -43,6 +42,7 @@ final class ProductController {
         }
         Router::json((json_encode($products)));
     }
+
     /**
      * Affiche le détail d'un produit.
      * 
@@ -63,76 +63,6 @@ final class ProductController {
         // Envoyer la réponse en json.
         Router::json(json_encode($product));
     }
-
-    /**
-     * Importe une image.
-     * POST /api/image-upload
-     * @return void
-     */
-    public static function imageUpload() : void {
-        $fileName = Utils::createImage(Utils::getInputData()['image']);
-        Router::json(json_encode($fileName));
-    }
-
-    /**
-     * Modifie les données d'un produit existant.
-     *
-     * PUT /api/products/{id}
-     * Accès: ADMIN.
-     * 
-     * @param array $assocParams Tableau associatif des paramètres.
-     * @return void
-     */
-    public static function update(array $assocParams) : void {
-        // Vérifier si token et si valide.
-        $token = JWT::isValidJWT();
-        if(!$token) 
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
-        // Vérifier les droits d'accès du user.
-        $user = User::getLoggedUser();
-        if(!$user->isGranted("ROLE_ADMIN"))
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
-        // Initialiser le tableau des résultats.
-        $results = [];
-        // Ajouter le token.
-        $results['jwt_token'] = $token;
-        // Récupérer l'id du produit passé en paramètre.
-        $idProduct = (int)$assocParams['id'];
-        // Récupérer le produit.
-        $product = Product::findOneBy(['idProduct' => $idProduct ]);
-        // Initialiser le tableau des erreurs
-        $errors = [];
-        // Récupérer le tableau des données reçues en PUT et les mettre dans la Super Globale $_PUT.
-		parse_str(file_get_contents("php://input"),$_PUT);
-
-    }
-    /**
-     * "Supprime" un produit.
-     * Passe 'isVisible' à false.
-     *
-     * DELETE /products/{id}
-     * Accès: ADMIN.
-     * 
-     * @param array $assocParams Tableau des paramètres.
-     * @return void
-     */
-    public static function delete(array $assocParams) : void {
-        // Vérifier si User logué.
-        $user = User::getLoggedUser();
-        if(!$user) 
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
-        // Vérifier si a les droits d'accès.
-        if(!$user->isGranted("ROLE_ADMIN"))
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
-        $product = Product::findOneBy(['idProduct' => (int)$assocParams['id']]);
-        $product->isVisible = false;
-        $product->persist();
-        $results = [];
-        $results['jwt_token'] = JWT::isValidJWT();
-        Router::responseJson(true, "Le produit a été supprimé.", $results);
-    }
-
-
 
     /**
      * Enregistre un produit en DB.
@@ -254,4 +184,31 @@ final class ProductController {
         }
         Router::json(json_encode($errors));
     }
+
+    /**
+     * "Supprime" un produit.
+     * Passe 'isVisible' à false.
+     *
+     * DELETE /products/{id}
+     * Accès: ADMIN.
+     * 
+     * @param array $assocParams Tableau des paramètres.
+     * @return void
+     */
+    public static function delete(array $assocParams) : void {
+        // Vérifier si User logué.
+        $user = User::getLoggedUser();
+        if(!$user) 
+            Router::json(json_encode(UserControllerException::NO_LOGGED_USER));
+        // Vérifier si a les droits d'accès.
+        if(!$user->isGranted("ROLE_ADMIN"))
+            Router::json(json_encode(UserControllerException::ACCESS_DENIED));
+        $product = Product::findOneBy(['idProduct' => (int)$assocParams['id']]);
+        $product->isVisible = false;
+        $product->persist();
+        Router::json(json_encode("Produit supprimé avec succès."));
+    }
+
+
+
 }

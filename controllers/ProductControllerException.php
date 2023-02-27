@@ -20,7 +20,7 @@ final class ProductControllerException extends Exception {
     public const INVALID_DESCRIPTION = "Invalid description.";
     public const INVALID_IMG = "Invalid image's path.";
     public const INVALID_PRICE = "Invalid price.";
-    public const INVALID_DUPLICATE_REF = "Invalid duplicate ref.";
+    public const INVALID_DUPLICATED_REF = "Invalid duplicated ref.";
     public const INVALID_STOCK = "Invalid stock.";
     public const INVALID_GENDER = "Invalid gender.";
     public const INVALID_SPECIES_OR_BRAND = "Invalid species/brand.";

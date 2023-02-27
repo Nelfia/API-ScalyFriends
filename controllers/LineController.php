@@ -19,7 +19,6 @@ final class LineController {
      */
     private function __construct() {}
 
-
     /**
      * Contrôle l'accès et les données reçues & insère une nouvelle ligne en DB.
      * Possible UNIQUEMENT lorsque la commande a un status 'cart'.
@@ -31,16 +30,18 @@ final class LineController {
      * Envoie du panier au client.
      *
      * POST /api/orders/{idCommand}/lines
+     * PUT /api/orders/{idCommand}/lines
      * Accès: USER.
      *
      * @param array $assocParams
      * @return void
      */
-    public static function addLine(array $assocParams) : void {
+    public static function updateLine(array $assocParams) : void {
         // Créer une nouvelle ligne.
         $line = new Line();
         $line->idCommand = (int)$assocParams['idCommand'];
-        $line = self::processingDataLine($line, true);
+        $verb = filter_input(INPUT_SERVER, 'REQUEST_METHOD', FILTER_SANITIZE_SPECIAL_CHARS) ?: filter_var($_SERVER['REQUEST_METHOD'], FILTER_SANITIZE_SPECIAL_CHARS);
+        $line = self::processingDataLine($line, ($verb === "POST"));
         $panier = $line->getCommand();
         $panier->getLines();
         $panier->lastChange = date('Y-m-d H:i:s');
@@ -74,31 +75,12 @@ final class LineController {
         Router::json(json_encode($newCart));
     }
 
-    /**
-     * Contrôle l'accès et les données reçues & modifie une ligne en DB.
-     * Possible UNIQUEMENT lorsque la commande a un status 'cart'.
-     *
-     * Envoie du panier au client.
-     *
-     * PUT /api/orders/([1-9][0-9]*)/lines
-     * Accès: USER.
-     */
-    public static function updateLine(array $assocParams) : void {
-        // Créer une nouvelle ligne.
-        $line = new Line();
-        $line->idCommand = (int)$assocParams['idCommand'];
-        $line = self::processingDataLine($line, false);
-        $panier = $line->getCommand();
-        $panier->getLines();
-        $panier->lastChange = date('Y-m-d H:i:s');
-        $panier->persist();
-        Router::json(json_encode($panier));
-    }
 
     /**
-     * Vérifie les droits d'accès et vérifie les données reçues par le client.
+     * Vérifie les droits d'accès et les données reçues par le client.
      * Si pas d'erreurs: persiste et retourne la ligne.
      * Sinon, retourne le tableau des erreurs.
+     *
      * @param Line $line
      * @param bool $addingLine
      * @return Line|array

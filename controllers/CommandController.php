@@ -80,11 +80,14 @@ final class CommandController {
         $idCommand = (int)$assocParams['idCommand'];
         // Récupérer la commande.
         $command = Command::findOneBy(['idCommand' => $idCommand]);
-        $command?->getLines();
+        if(!$command)
+            Router::json(CommandControllerException::NO_MATCH_FOUND);
         // Si l'utilisateur est admin.
         if(($user->isGranted('ROLE_USER') && $command?->idCustomer === $user->idUser) || $user->isGranted('ROLE_ADMIN')) {
+            $command->getLines();
             Router::json(json_encode($command));
         }
+        Router::json(json_encode(UserControllerException::ACCESS_DENIED));
     }
     /**
      * Contrôle les données reçues en POST & créé/maj commande en DB.
@@ -105,15 +108,13 @@ final class CommandController {
         if($user?->isGranted('ROLE_ADMIN'))
             Router::json(json_encode(UserControllerException::ACCESS_DENIED));
         // Si l'utilisateur a déjà un panier, le récupérer.
-        $cart = $user->getCart();
-        if(!$cart)
-            $cart = CommandController::createCart((array)$user);
+        $cart = $user->getCart() ?: CommandController::createCart((array)$user);
         //Récupérer et mettre à jour les lignes du panier reçues en POST.
         $input = Utils::getInputData();
-        $cartLS = $input['cart'];
-        $lines = $cartLS->lines;
+        $lines = $input['lines'];
         if($lines){
             foreach ($lines as $line) {
+                // TODO: transformer $line en Line
                 $line->idCommand = $cart->idCommand;
                 //Pour chaque ligne, la mettre à jour en DB.
                 LineController::processingDataLine($line, true);
