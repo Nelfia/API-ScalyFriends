@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace controllers;
 
-use cfg\CfgApp;
-use peps\core\Router;
-use peps\jwt\JWT;
+use classes\Utils;
 use entities\Product;
 use entities\User;
-use Exception;
+use peps\core\Router;
 
 /**
  * Classe 100% statique de gestion des produits.
@@ -23,11 +21,12 @@ final class ProductController {
 
     /**
      * Envoie liste de tous les produits.
-     * 
+     *
      * GET /api/products
      * GET /api/products/(animals|materials|feeding)
      * Accès: PUBLIC.
      *
+     * @param array $assocParams
      * @return void
      */
     public static function list(array $assocParams) : void {
@@ -37,12 +36,13 @@ final class ProductController {
         }
         $filters['isVisible'] = true;
         // Récupérer tous les produits non archivés dans l'ordre alphabétique.
-        $products = Product::findAllBy($filters, []);
+        $products = Product::findAllBy($filters);
         if(!$products) {
             Router::json(json_encode("erreur: aucun résultat."));
         }
-        Router::json((json_encode($products)), true);
+        Router::json((json_encode($products)));
     }
+
     /**
      * Affiche le détail d'un produit.
      * 
@@ -63,230 +63,128 @@ final class ProductController {
         // Envoyer la réponse en json.
         Router::json(json_encode($product));
     }
+
     /**
-     * Contrôle les données reçues & insère un nouveau produit en DB.
+     * Enregistre un produit en DB.
      *
      * POST /api/products
-     * Accès: ADMIN.
-     * 
+     * Accès Admin.
+     *
      * @return void
      */
-    public static function create() : void {
-        // Vérifier si token et si valide.
-        $token = JWT::isValidJWT();
-        if(!$token) 
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
-        // Vérifier les droits d'accès du user.
+    public static function save() : void {
+        // Vérifier si user connecté.
         $user = User::getLoggedUser();
+        if(!$user)
+            Router::json(json_encode(UserControllerException::NO_LOGGED_USER));
+        // Vérifier les droits d'accès du user.
         if(!$user->isGranted("ROLE_ADMIN"))
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
-        // Initialiser le tableau des résultats.
-        $results = [];
-        // Ajouter le token.
-        $results['jwt_token'] = $token;
+            Router::json(json_encode(UserControllerException::ACCESS_DENIED));
+
         // Créer un produit.
         $product = new Product();
-        // Initialiser le tableau des erreurs
+        // Initialiser les tableaux de résultats et d'erreurs.
         $errors = [];
-        // Récupérer et valider les données
-        $product->category = filter_input(INPUT_POST, 'category', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->category || mb_strlen($product->category) > 50)
-            $errors[] = ProductControllerException::INVALID_CATEGORY;
-        $product->type = filter_input(INPUT_POST, 'type', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->type || mb_strlen($product->type) > 100)
-            $errors[] = ProductControllerException::INVALID_TYPE;
-        $product->name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->name || mb_strlen($product->name) > 255)
-            $errors[] = ProductControllerException::INVALID_NAME;
-        $product->description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->description)
-            $errors[] = ProductControllerException::INVALID_DESCRIPTION;
-        $product->img = "/assets/img/" . filter_input(INPUT_POST, 'description', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        //Récupérer les données reçues du client.
+        $inputData = Utils::getInputData();
+        //Récupérer l'image reçue en base64.
+        $imageSrc = $inputData['imageSrc'];
+        // Convertir l'image et l'enregistrer dans le dossier assets/img/ du serveur.
+        $fileName = Utils::createImage($imageSrc);
+        // Récupérer le nom du fichier à enregistrer en DB.
+        $product->img = '/assets/img/' . $fileName;
         if(!$product->img)
             $errors[] = ProductControllerException::INVALID_IMG;
-        $product->price = filter_input(INPUT_POST, 'price', FILTER_VALIDATE_FLOAT) ?: null;
-        if(!$product->price || $product->price <= 0 || $product->price > 10000)
+
+        // Récupérer et valider les données saisies par l'utilisateur.
+        $receivedProduct = $inputData['product'];
+        if (isset($receivedProduct->idProduct)) {
+            $product->idProduct = filter_var($receivedProduct->idProduct, FILTER_VALIDATE_INT) ?: null;
+            if (!$product->idProduct || $product->idProduct <= 0)
+                $errors[] = ProductControllerException::INVALID_ID;
+        }
+
+        $product->category = filter_var($receivedProduct->category, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$product->category || (mb_strlen($product->category) > 50 || mb_strlen($product->category) < 6))
+            $errors[] = ProductControllerException::INVALID_CATEGORY;
+
+        $product->type = filter_var($receivedProduct->type, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$product->type || (mb_strlen($product->type) > 100 || mb_strlen($product->type) < 4))
+            $errors[] = ProductControllerException::INVALID_TYPE;
+
+        $product->name = filter_var($receivedProduct->name, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$product->name || (mb_strlen($product->name) > 255 || mb_strlen($product->name) < 3))
+            $errors[] = ProductControllerException::INVALID_NAME;
+
+        $product->description = filter_var($receivedProduct->description, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$product->description || mb_strlen($product->description) < 10)
+            $errors[] = ProductControllerException::INVALID_DESCRIPTION;
+
+        $product->price = filter_var($receivedProduct->price, FILTER_VALIDATE_FLOAT) ?: null;
+        if(!$product->price || ($product->price <= 0 || $product->price > 10000))
             $errors[] = ProductControllerException::INVALID_PRICE;
-        $product->stock = filter_input(INPUT_POST, 'stock', FILTER_VALIDATE_INT) ?: null;
+
+        $product->stock = filter_var($receivedProduct->stock, FILTER_VALIDATE_INT) ?: null;
         if(!$product->stock || $product->stock < 0)
             $errors[] = ProductControllerException::INVALID_STOCK;
-        $product->gender = filter_input(INPUT_POST, 'gender', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->gender) {
-            if($product->gender !== "f" || $product->gender !== "m" || mb_strlen($product->gender) > 1)
-                $errors[] = ProductControllerException::INVALID_GENDER;
-        }
-        $product->species = filter_input(INPUT_POST, 'species', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->species || mb_strlen($product->species) > 200)
-            $errors[] = ProductControllerException::INVALID_SPECIES; 
-        $product->race = filter_input(INPUT_POST, 'race', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->race && mb_strlen($product->race) > 200)
-                $errors[] = ProductControllerException::INVALID_RACE;
-        $product->birth = filter_input(INPUT_POST, 'birth', FILTER_VALIDATE_INT) ?: null;
-        if($product->birth){
-            if ($product->birth < 2010|| $product->birth > date('Y'))
-                $errors[] = ProductControllerException::INVALID_BIRTH;
-        }
-        $product->requiresCertification = filter_input(INPUT_POST, 'requiresCertification', FILTER_VALIDATE_BOOL) !== null ?: null;
-        if($product->requiresCertification === null)
-            $errors[] = ProductControllerException::INVALID_REQUIRES_CERTIFICATION;
-        $product->dimensionsMax = filter_input(INPUT_POST, 'dimensionsMax', FILTER_VALIDATE_FLOAT) ?: null;
-        if(!$product->dimensionsMax || $product->dimensionsMax <= 0 || $product->dimensionsMax > 10000)
-            $errors[] = ProductControllerException::INVALID_DIMENSION;
-        $product->dimensionsUnit = filter_input(INPUT_POST, 'dimensionsUnit', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->dimensionsUnit || mb_strlen($product->dimensionsUnit) > 10)
-            $errors[] = ProductControllerException::INVALID_DIMENSION_UNIT;
-        $product->specification = filter_input(INPUT_POST, 'specification', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if(!$product->specification || mb_strlen($product->specification) > 50)
-            $errors[] = ProductControllerException::INVALID_SPECIFICATION;
-        $product->specificationValue = filter_input(INPUT_POST, 'specificationValue', FILTER_VALIDATE_FLOAT) ?: null;
-        if($product->specificationValue && $product->specificationValue <= 0 )
-            $errors[] = ProductControllerException::INVALID_SPECIFICATION_VALUE;
-        $product->specificationUnit = filter_input(INPUT_POST, 'specificationUnit', FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if(!$product->specificationUnit || mb_strlen($product->specificationUnit) > 3)
-                $errors[] = ProductControllerException::INVALID_SPECIFICATION_UNIT;
-        // Générer une référence unique.
-        $catRef = strtoupper(substr($product->category, 0, 4));
-        $dateRef = date('Ymdhis');
-        $nbRef = substr((string)Product::getCount(),-3);
-        $product->ref = $catRef . $dateRef . $nbRef;
-        // Récupérer l'idUser du créateur du produit.
-        $payload = JWT::getPayload($token);
-        $product->idAuthor = $payload['user_id'];
-        // Faire apparaître le produit.
-        $product->isVisible = true;
-        // Si aucune erreur, persister le produit.
-        if(!$errors) {
-            // Tenter de persister en tenant compte du potentiel doublon de référence.
-            try {
-                $product->persist();
-            } catch (Exception) {
-                $errors[] = ProductControllerException::INVALID_DUPLICATE_REF;
-            }
-            // Si toujours pas d'erreur.
-            if(!$errors) {
-            // Remplir la réponse à envoyer au client.
-            $success = true;
-            $message = "Produit créé avec succès";
-            $results['product'] = $product;
-            }
-        } else {
-            // Remplir la réponse à envoyer au client.
-            $success = false;
-            $message = "Impossible de créer produit !";
-            $results['errors'] = $errors;            
-            $results['product'] = $product;            
-        }
 
-        // Envoyer la réponse au client.
-        Router::responseJson($success, $message, $results);
-    }
-
-    /**
-     * Importe une image.
-     * POST /api/image-upload
-     * @return void
-     */
-    public static function imageUpload() : void {
-        self::createImage(CfgApp::getInputData()['image']);
-    }
-    /**
-     * Modifie les données d'un produit existant.
-     *
-     * PUT /api/users/{id}
-     * Accès: ADMIN.
-     * 
-     * @param array $assocParams Tableau associatif des paramètres.
-     * @return void
-     */
-    public static function update(array $assocParams) : void {
-        // Vérifier si token et si valide.
-        $token = JWT::isValidJWT();
-        if(!$token) 
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
-        // Vérifier les droits d'accès du user.
-        $user = User::getLoggedUser();
-        if(!$user->isGranted("ROLE_ADMIN"))
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
-        // Initialiser le tableau des résultats.
-        $results = [];
-        // Ajouter le token.
-        $results['jwt_token'] = $token;
-        // Récupérer l'id du produit passé en paramètre.
-        $idProduct = (int)$assocParams['id'];
-        // Récupérer le produit.
-        $product = Product::findOneBy(['idProduct' => $idProduct ]);
-        // Initialiser le tableau des erreurs
-        $errors = [];
-        // Récupérer le tableau des données reçues en PUT et les mettre dans la Super Globale $_PUT.
-		parse_str(file_get_contents("php://input"),$_PUT);
-        // Récupérer et valider les données
-        $product->category = filter_var($_PUT['category'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->category && (mb_strlen($product->category) > 50 || mb_strlen($product->category) < 6))
-            $errors[] = ProductControllerException::INVALID_CATEGORY;
-        $product->type = filter_var($_PUT['type'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->type && (mb_strlen($product->type) > 100 || mb_strlen($product->type) < 4))
-            $errors[] = ProductControllerException::INVALID_TYPE;
-        $product->name = filter_var($_PUT['name'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->name && (mb_strlen($product->name) > 255 || mb_strlen($product->name) < 3))
-            $errors[] = ProductControllerException::INVALID_NAME;
-        $product->description = filter_var($_PUT['description'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->description && mb_strlen($product->description) < 10)
-            $errors[] = ProductControllerException::INVALID_DESCRIPTION;
-        $product->img = ("/assets/img/" . filter_var($_PUT['img'], FILTER_SANITIZE_SPECIAL_CHARS)) ?: null;
-        if($product->img && mb_strlen($product->img) > 255)
-            $errors[] = ProductControllerException::INVALID_IMG;
-        $product->price = filter_var($_PUT['price'], FILTER_VALIDATE_FLOAT) ?: null;
-        if($product->price && ($product->price <= 0 || $product->price > 10000))
-            $errors[] = ProductControllerException::INVALID_PRICE;
-        $product->stock = filter_var($_PUT['stock'], FILTER_VALIDATE_INT) ?: null;
-        if($product->stock && $product->stock < 0)
-            $errors[] = ProductControllerException::INVALID_STOCK;
-        $product->gender = filter_var($_PUT['gender'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product?->gender && (!($product?->gender === "F") && !($product?->gender === "M")))
+        $product->gender = filter_var($receivedProduct->gender, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if($product->gender && (!($product->gender === "F") && !($product->gender === "M")))
             $errors[] = ProductControllerException::INVALID_GENDER;
-        $product->species = filter_var($_PUT['species'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-        if($product->species && (mb_strlen($product->species) > 200 || mb_strlen($product->species) < 3))
-            $errors[] = ProductControllerException::INVALID_SPECIES; 
-        $product->race = filter_var($_PUT['race'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+
+        $product->species = filter_var($receivedProduct->species, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if(!$product->species || (mb_strlen($product->species) > 200 || mb_strlen($product->species) < 3))
+            $errors[] = ProductControllerException::INVALID_SPECIES_OR_BRAND;
+
+        $product->race = filter_var($receivedProduct->race, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if($product->race && (mb_strlen($product->race) > 200))
-                $errors[] = ProductControllerException::INVALID_RACE;
-        $product->birth = filter_var((int)$_PUT['birth'], FILTER_VALIDATE_INT) ?: null;
+            $errors[] = ProductControllerException::INVALID_RACE;
+
+        $product->birth = filter_var((int)$receivedProduct->birth, FILTER_VALIDATE_INT) ?: null;
         if($product->birth && ($product->birth < 2010|| $product->birth > date('Y')))
-                $errors[] = ProductControllerException::INVALID_BIRTH;
-        $product->requiresCertification = filter_var($_PUT['requiresCertification'], FILTER_VALIDATE_BOOL) !== null ?: null;
+            $errors[] = ProductControllerException::INVALID_BIRTH;
+
+        $product->requiresCertification = filter_var($receivedProduct->requiresCertification, FILTER_VALIDATE_BOOL) !== null ?: null;
         if($product->requiresCertification === null)
             $errors[] = ProductControllerException::INVALID_REQUIRES_CERTIFICATION;
-        $product->dimensionsMax = filter_var($_PUT['dimensionsMax'], FILTER_VALIDATE_FLOAT) ?: null;
+
+        $product->dimensionsMax = filter_var($receivedProduct->dimensionsMax, FILTER_VALIDATE_FLOAT) ?: null;
         if($product->dimensionsMax && ($product->dimensionsMax <= 0 || $product->dimensionsMax > 10000))
             $errors[] = ProductControllerException::INVALID_DIMENSION;
-        $product->dimensionsUnit = filter_var($_PUT['dimensionsUnit'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+
+        $product->dimensionsUnit = filter_var($receivedProduct->dimensionsUnit, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if($product->dimensionsUnit && mb_strlen($product->dimensionsUnit) > 10)
             $errors[] = ProductControllerException::INVALID_DIMENSION_UNIT;
-        $product->specification = filter_var($_PUT['specification'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+
+        $product->specification = filter_var($receivedProduct->specification, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if($product->specification && mb_strlen($product->specification) > 50)
             $errors[] = ProductControllerException::INVALID_SPECIFICATION;
-        $product->specificationValue = filter_var($_PUT['specificationValue'], FILTER_VALIDATE_FLOAT) ?: null;
+
+        $product->specificationValue = filter_var($receivedProduct->specificationValue, FILTER_VALIDATE_FLOAT) ?: null;
         if($product->specificationValue && $product->specificationValue <= 0 )
             $errors[] = ProductControllerException::INVALID_SPECIFICATION_VALUE;
-        $product->specificationUnit = filter_var($_PUT['specificationUnit'], FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
-            if($product->specificationUnit && mb_strlen($product->specificationUnit) > 3)
-                $errors[] = ProductControllerException::INVALID_SPECIFICATION_UNIT;
-        // Si aucune erreur, persister le produit.
+
+        $product->specificationUnit = filter_var($receivedProduct->specificationUnit, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
+        if($product->specificationUnit && mb_strlen($product->specificationUnit) > 3)
+            $errors[] = ProductControllerException::INVALID_SPECIFICATION_UNIT;
+        // exit(json_encode($product));
+        // Si aucune erreur, ajouter les informations manquantes et persister le produit.
         if(!$errors) {
+            $product->idAuthor = $user->idUser;
+            // Générer une référence unique.
+            $catRef = strtoupper(substr($product->category, 0, 4));
+            $dateRef = date('Ymdhis');
+            $nbRef = substr((string)Product::getCount(),-3);
+            $product->ref = $catRef . $dateRef . $nbRef;
+            // Faire apparaître le produit.
+            $product->isVisible = true;
+            // Persister le produit.
             $product->persist();
-            // Remplir la réponse à envoyer au client.
-            $success = true;
-            $message = "Produit a bien été mis à jour";
-        } else {
-            // Remplir la réponse à envoyer au client.
-            $success = false;
-            $message = "Impossible de modifier le produit !";
-            $results['errors'] = $errors;
+            Router::json(json_encode("Le produit est bien mis à jour"));
         }
-        $results['product'] = $product;
-        // Envoyer la réponse au client.
-        Router::responseJson($success, $message, $results);
+        Router::json(json_encode($errors));
     }
+
     /**
      * "Supprime" un produit.
      * Passe 'isVisible' à false.
@@ -301,41 +199,16 @@ final class ProductController {
         // Vérifier si User logué.
         $user = User::getLoggedUser();
         if(!$user) 
-            Router::responseJson(false, "Vous devez être connecté pour accéder à cette page.");
+            Router::json(json_encode(UserControllerException::NO_LOGGED_USER));
         // Vérifier si a les droits d'accès.
         if(!$user->isGranted("ROLE_ADMIN"))
-            Router::responseJson(false, "Vous n'êtes pas autorisé à accéder à cette page.");
+            Router::json(json_encode(UserControllerException::ACCESS_DENIED));
         $product = Product::findOneBy(['idProduct' => (int)$assocParams['id']]);
         $product->isVisible = false;
         $product->persist();
-        $results = [];
-        $results['jwt_token'] = JWT::isValidJWT();
-        Router::responseJson(true, "Le produit a été supprimé.", $results);
+        Router::json(json_encode("Produit supprimé avec succès."));
     }
 
-    /**
-     *
-     * @return void
-     */
-    public static function addtoCart() : void {
-        // Vérifier si idPanier reçu.
-    }
 
-    /**
-     * Convertir et enregistrer une image base64 dans le dossier assets/img/.
-     *
-     * @param string $img
-     * @return void
-     */
-    private static function createImage(string $img): void
-    {
-        $path = "C:/Users/qdeca/OneDrive/Bureau/projets/ap_formation/DP/sf-api/assets/img/";
-        $image_parts = explode(";base64,", $img);
-        $image_type_aux = explode("image/", $image_parts[0]);
-        $image_type = $image_type_aux[1];
-        $image_en_base64 = base64_decode($image_parts[1]);
-        $file = $path . uniqid() . '.' . $image_type;
 
-        file_put_contents($file, $image_en_base64);
-    }
 }

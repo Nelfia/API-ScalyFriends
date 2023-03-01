@@ -95,7 +95,7 @@ class Product extends Entity  {
     /**
      * Année de naissance de l'animal.
      *
-     * @var string|null
+     * @var int|null
      */
     public ?int $birth = null;
     /**
@@ -166,21 +166,22 @@ class Product extends Entity  {
         self::$count++;
     }
     /**
-     * Retourne le nombre d'instances de Product créées depuis le dabut.
+     * Retourne le nombre d'instances de Product créées depuis le début.
      *
      * @return integer
      */
     public static function getCount(): int {
         return self::$count;
     }
+
     /**
      * Retourne l'auteur du produit en lazy loading.
      *
-     * @return User Instance de l'auteur.
+     * @return User|null Instance de l'auteur.
      */
     public function getAuthor(): ?User {
         if ($this->author === null) {
-            $this->author = User::findOneBy(['idUser' => $this->idAuthor], []);
+            $this->author = User::findOneBy(['idUser' => $this->idAuthor]);
         }
         return $this->author;
     }

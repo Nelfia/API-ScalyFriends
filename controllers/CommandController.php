@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace controllers;
 
-use cfg\CfgApp;
+use classes\Utils;
 use entities\Command;
 use entities\Line;
 use entities\User;
@@ -80,11 +80,14 @@ final class CommandController {
         $idCommand = (int)$assocParams['idCommand'];
         // Récupérer la commande.
         $command = Command::findOneBy(['idCommand' => $idCommand]);
-        $command?->getLines();
+        if(!$command)
+            Router::json(CommandControllerException::NO_MATCH_FOUND);
         // Si l'utilisateur est admin.
         if(($user->isGranted('ROLE_USER') && $command?->idCustomer === $user->idUser) || $user->isGranted('ROLE_ADMIN')) {
+            $command->getLines();
             Router::json(json_encode($command));
         }
+        Router::json(json_encode(UserControllerException::ACCESS_DENIED));
     }
     /**
      * Contrôle les données reçues en POST & créé/maj commande en DB.
@@ -105,15 +108,13 @@ final class CommandController {
         if($user?->isGranted('ROLE_ADMIN'))
             Router::json(json_encode(UserControllerException::ACCESS_DENIED));
         // Si l'utilisateur a déjà un panier, le récupérer.
-        $cart = $user->getCart();
-        if(!$cart)
-            $cart = CommandController::createCart((array)$user);
+        $cart = $user->getCart() ?: CommandController::createCart((array)$user);
         //Récupérer et mettre à jour les lignes du panier reçues en POST.
-        $_POST = CfgApp::getInputData();
-        $cartLS = $_POST['cart'];
-        $lines = $cartLS->lines;
+        $input = Utils::getInputData();
+        $lines = $input['lines'];
         if($lines){
             foreach ($lines as $line) {
+                // TODO: transformer $line en Line
                 $line->idCommand = $cart->idCommand;
                 //Pour chaque ligne, la mettre à jour en DB.
                 LineController::processingDataLine($line, true);
@@ -145,7 +146,7 @@ final class CommandController {
         if(!$user?->isGranted('ROLE_ADMIN') || $user->idUser !== $targetCommand->idCustomer)
             Router::json(json_encode(UserControllerException::ACCESS_DENIED));
         // Récupérer les données reçues en PUT.
-        $_PUT = CfgApp::getInputData();
+        $_PUT = Utils::getInputData();
         // Vérifier les données reçues.
         $newCart = $_PUT['cart'];
         $lines = $newCart->lines;
@@ -161,7 +162,7 @@ final class CommandController {
     }
     private static function processingUserOnCommand() : array {
         // Récupérer les données reçues en PUT et les mettre dans la "Super Globale" $_PUT.
-		$_PUT = CfgApp::getInputData();
+		$_PUT = Utils::getInputData();
         // Initialiser le tableau des erreurs.
         $errors = [];
         // Récupérer le user logué.
@@ -255,7 +256,7 @@ final class CommandController {
      *
      * GET /api/createCart
      *
-     * @param User $user
+     * @param array $assocParams
      * @return Command
      */
     public static function createCart(array $assocParams) : Command {

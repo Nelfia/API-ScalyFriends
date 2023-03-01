@@ -5,9 +5,8 @@ declare(strict_types=1);
 
 namespace controllers;
 
-use cfg\CfgApp;
+use classes\Utils;
 use entities\User;
-use Error;
 use Exception;
 use peps\core\Router;
 use peps\jwt\JWT;
@@ -49,6 +48,7 @@ final class UserController {
         // Envoyer la réponse au client.
         Router::responseJson($success, $message, $results);
     }
+    // TODO: vérifier & refacto Show
     /**
      * Récupère les informations d'un User.
      * 
@@ -91,7 +91,7 @@ final class UserController {
 		// Si user logué, le déloguer.
 		if(User::getLoggedUser()) self::logout();
         // Récupérer les données envoyées par le client.
-        $data = CfgApp::getInputData();
+        $data = Utils::getInputData();
 		// Récupérer et valider les données du user.
 		$processing = self::processingUserCreation($data);
 		$errors = $processing['errors'];
@@ -168,53 +168,7 @@ final class UserController {
 		$results['user'] = $user->secureReturnedUser();
 		Router::responseJson($success, $message, $results);
     }
-    /**
-     * Supprime un User en BD.
-     * 
-     * DELETE /api/users/{id}
-     * Accès: ROLE_USER || ROLE_ADMIN.
-     *
-     * @param array $assocParams Tableau associatif des paramètres.
-     * @return void
-     */
-    public static function delete(array $assocParams) : void {
-		// Récupérer l'id du User dont on veut supprimer les données.
-		$idUser = (int)$assocParams['id'];
-		// Récupérer l'instance du User logué.
-		$loggedUser = User::getLoggedUser();
-		// Initialiser le tableau des résultats de la réponse.
-		$results = [];
-		$results['jwt_token'] = JWT::isValidJWT();
-		// Si user non logué ou token invalide.
-		if(!$loggedUser){
-			$success = false;
-			$message = "Vous devez être connecté pour accéder à cette page.";
-			Router::responseJson($success, $message, $results);
-		}
-		// Vérifier les droits d'accès du user.
-		$success = (($loggedUser?->isGranted("ROLE_USER") && ($loggedUser?->idUser === $idUser))||$loggedUser?->isGranted("ROLE_ADMIN"));
-		// Si l'accès est refusé.
-		if(!$success){
-			$message = "Vous n'êtes pas autorisé à accéder à cette page.";
-			Router::responseJson($success, $message, $results);
-		}
-		// Initialiser le tableau des erreurs.
-		$errors = [];
-		// Récupérer le User à mettre à jour.
-		$user = User::findOneBy(['idUser' => $idUser]);
-		if($user) {
-			$results['user'] = $user;
-			try {
-				$success = $user->remove();
-				$message = "L'utilisateur a bien été supprimé";
-			} catch (Error $e) {
-				$errors[] = $e->getMessage();
-			}
-		} else {
-			$message = "Aucun User trouvé.";
-		}
-		Router::responseJson($success, $message, $results);
-    }
+
     /**
      * Tente de loguer un utilisateur et retourne un jeton JWT.
      *
@@ -228,15 +182,13 @@ final class UserController {
 		if(User::getLoggedUser()) JWT::destroy();
         // Créer un user
         $user = new User();
-        // Initialiser le tableau des erreurs
-        $errors = [];
         // Initialiser le tableau de la réponse JSON.
-        $results = array();
+        $results = [];
         // Récupérer les données envoyées par le client.
-        $data = CfgApp::getInputData();
+        $inputData = Utils::getInputData();
         // Récupérer les données et tenter le login.
-        $user->username = filter_var($_POST['username'] ??$data['username'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
-        $pwd = filter_var($_POST['pwd'] ??$data['pwd'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
+        $user->username = filter_var($inputData['username'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
+        $pwd = filter_var($inputData['pwd'], FILTER_SANITIZE_SPECIAL_CHARS)?: null;
         // Si login OK, générer le JWT et renvoyer réponse en Json.
         if ($user->login($pwd)) {
             // Créer le contenu du payload.
@@ -244,17 +196,19 @@ final class UserController {
             $token = JWT::generate([], $payload, 3600);
             // Construire la réponse à envoyer au client.
             $results['idToken'] = json_encode($token);
+            $results['role'] = $user->roles;
             $results['expires'] = json_encode(JWT::getPayload($token)['exp']);
             $results['cart'] = $user->getCart();
             $results['idCart'] = $user->getIdCart();
             $user->onlyUser();
+		    // Par mesure de sécurité, retirer le role et le mdp du user dans la réponse.
             $results['user'] = $user;
         } else
-            $results['errors'] = $errors;
-		// Par mesure de sécurité, retirer le role et le mdp du user dans la réponse.
-
+            $results['errors'] = UserControllerException::ERROR_LOGIN;
+        // Envoi de la réponse au client.
         Router::json(json_encode($results));
 	}
+
     /**
      * Délogue l'utilisateur via son JWT.
      * Le JWT DEVRA également être maj côté client (si enregistré dans un strore par exemple).
@@ -266,14 +220,11 @@ final class UserController {
      */
     public static function logout() : void {
         // Détruire le token.
-        $success = JWT::destroy();
-        var_dump(JWT::destroy());
-        $message = "Token supprimé";
-        $results = array();
-        $results['jwt_token'] = JWT::isValidJWT()?: '';
+        JWT::destroy();
         // Rediriger
-        Router::responseJson($success, $message, $results);
+        Router::json(json_encode("Utilisateur déconnecté"));
     }
+
 	
 	/**
 	 * Récupère et valide les données de création d'un user reçues en POST.

@@ -28,7 +28,7 @@
     {
         "verb" : "POST",
         "uri" : "/api/products",
-        "method" : "ProductController.create"
+        "method" : "ProductController.save"
     },
     {
         "verb" : "POST",
@@ -142,7 +142,7 @@
     {
         "verb" : "POST",
         "uri" : "/api/orders/([1-9][0-9]*)/lines",
-        "method" : "LineController.addLine",
+        "method" : "LineController.updateLine",
         "params" : [
             "idCommand"
         ]

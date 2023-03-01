@@ -77,7 +77,7 @@ class Command extends Entity  {
      * @return array|null Tableau des lignes de la commande ou null si non trouvées.
      */
     public function getLines(): ?array {
-        $this->lines = Line::findAllBy(['idCommand' => $this->idCommand], []);
+        $this->lines = Line::findAllBy(['idCommand' => $this->idCommand]);
         foreach (($this->lines) as $line) $line->getProduct();
         return $this->lines;
     }
