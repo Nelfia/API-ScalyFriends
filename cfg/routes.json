@@ -31,11 +31,6 @@
         "method" : "ProductController.save"
     },
     {
-        "verb" : "POST",
-        "uri" : "/api/image-upload",
-        "method" : "ProductController.imageUpload"
-    },
-    {
         "verb" : "PUT",
         "uri" : "/api/products/([1-9][0-9]*)",
         "method" : "ProductController.update",
@@ -73,11 +68,6 @@
         ]
     },
     {
-        "verb" : "GET",
-        "uri" : "/api/createCart",
-        "method" : "CommandController.show"
-    },
-    {
         "verb" : "POST",
         "uri" : "/api/orders",
         "method" : "CommandController.update"
@@ -105,7 +95,7 @@
         "uri" : "/api/users/([1-9][0-9]*)",
         "method" : "UserController.show",
         "params" : [
-            "id"
+            "idUser"
         ]
     },
     {
@@ -135,7 +125,7 @@
         "method" : "UserController.login"
     },
     {
-        "verb" : "POST",
+        "verb" : "GET",
         "uri" : "/api/users/logout",
         "method" : "UserController.logout"
     },

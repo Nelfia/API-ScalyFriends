@@ -156,6 +156,7 @@ class Product extends Entity  {
      */
     protected ?User $author = null;
 
+
     /**
      * Constructeur.
      *

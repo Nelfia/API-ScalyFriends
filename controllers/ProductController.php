@@ -68,6 +68,7 @@ final class ProductController {
      * Enregistre un produit en DB.
      *
      * POST /api/products
+     *
      * Accès Admin.
      *
      * @return void
@@ -167,7 +168,6 @@ final class ProductController {
         $product->specificationUnit = filter_var($receivedProduct->specificationUnit, FILTER_SANITIZE_SPECIAL_CHARS) ?: null;
         if($product->specificationUnit && mb_strlen($product->specificationUnit) > 3)
             $errors[] = ProductControllerException::INVALID_SPECIFICATION_UNIT;
-        // exit(json_encode($product));
         // Si aucune erreur, ajouter les informations manquantes et persister le produit.
         if(!$errors) {
             $product->idAuthor = $user->idUser;
@@ -180,7 +180,8 @@ final class ProductController {
             $product->isVisible = true;
             // Persister le produit.
             $product->persist();
-            Router::json(json_encode("Le produit est bien mis à jour"));
+            $categoryProducts = Product::findAllBy(['isVisible' => true, 'category' => $product->category]);
+            Router::json(json_encode($categoryProducts));
         }
         Router::json(json_encode($errors));
     }
@@ -206,7 +207,8 @@ final class ProductController {
         $product = Product::findOneBy(['idProduct' => (int)$assocParams['id']]);
         $product->isVisible = false;
         $product->persist();
-        Router::json(json_encode("Produit supprimé avec succès."));
+        $categoryProducts = Product::findAllBy(['isVisible' => true, 'category' => $product->category]);
+        Router::json(json_encode($categoryProducts));
     }
 
 
